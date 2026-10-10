@@ -1,7 +1,7 @@
 # 提示词生成管家视觉优化方案
 
-日期：2026-10-10  
-实施基准：`prompt-butler/src/`，构建输出为 Chrome 当前加载的 `prompt-butler/dist/`。  
+日期：2026-10-10
+实施基准：`prompt-butler/src/`，构建输出为 Chrome 当前加载的 `prompt-butler/dist/`。
 状态：已实施层级与材质优化。最新用户修订优先于本文原始蓝色方向：改为近黑背景、绿色强调和中性灰表面层级，去除大面积蓝光；保留收藏夹叠层效果。最新截图位于 `visual-review-2026-10-10/black-green/`。
 
 ## 1. 设计目标与审查边界

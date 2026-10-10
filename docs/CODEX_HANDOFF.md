@@ -2,14 +2,14 @@
 
 更新日期：2026-10-10
 
-最新开发分支：`codex/optical-fidelity-lab`
+最新正式代码：`main`；继续开发分支：`codex/optical-fidelity-lab`（本次同步时两者一致）
 
 仓库：`https://github.com/MianTiaoDW/prompt-butler`
 
 ## 先说结论
 
-- GitHub 的 `origin/main` 目前仍是旧版；不要在公司电脑直接从 `main` 继续。
-- 在当前分支合并前，`origin/codex/optical-fidelity-lab` 是正式插件最新功能、四套隔离 Design Lab、测试截图和交接文档的共同基准。
+- GitHub 的 `main` 已同步到 2026-10-10 最新正式插件，可直接克隆／拉取并构建。
+- `main` 与 `codex/optical-fidelity-lab` 本次同步时指向同一版本；以正式 `src/` 源码为准。
 - Codex 聊天记录和本机安装的 Skill 不由 Git 同步。本文件把继续工作所需的决策和边界写入仓库，公司 Codex 不应依赖旧聊天猜测。
 
 ## 2026-10-10 最新正式插件
@@ -33,7 +33,7 @@
 git clone https://github.com/MianTiaoDW/prompt-butler.git
 cd prompt-butler
 git fetch origin
-git switch --track origin/codex/optical-fidelity-lab
+git switch main
 npm install
 npm run typecheck
 npm run build
@@ -44,7 +44,7 @@ npm run build
 ```powershell
 git status --short --branch
 git fetch origin
-git switch codex/optical-fidelity-lab
+git switch main
 git pull --ff-only
 npm install
 npm run build
@@ -54,7 +54,7 @@ npm run build
 
 给另一台电脑 Codex 的第一条指令：
 
-> 完整阅读 `AGENTS.md`、`docs/CODEX_HANDOFF.md`、`README.md`，检查当前分支、Git 状态和最近提交。以 `codex/optical-fidelity-lab` 为最新基准，不要用旧版 main 回退。当前正式插件采用黑绿配色，以 src/ 下最新代码为准；设计实验和旧截图不应覆盖正式界面。
+> 完整阅读 `AGENTS.md`、`docs/CODEX_HANDOFF.md`、`README.md`，检查当前分支、Git 状态和最近提交。以最新 `main` 为正式基准。当前正式插件采用黑绿配色，以 src/ 下最新代码为准；设计实验和旧截图不应覆盖正式界面。
 
 ## 仓库中已经保留的内容
 
