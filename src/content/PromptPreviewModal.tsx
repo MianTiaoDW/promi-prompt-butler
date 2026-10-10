@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, Copy, Eye, Heart, Image, PencilLine, Plus, Sparkles, Trash2, X } from "lucide-react";
 
-import type { PromptOutputFormat, SavedPromptRecord } from "../types/prompt";
+import type { PromptGroup, PromptOutputFormat, SavedPromptRecord } from "../types/prompt";
 import { useModalFocus } from "../hooks/useModalFocus";
 import { MOTION } from "../lib/motion";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import { dataUrlToObjectUrl, deleteExampleImageAsset, getExampleImagePayload, MAX_EXAMPLE_IMAGES, saveExampleImage } from "../lib/example-images";
 import { updateFavoritePrompt } from "../lib/prompt-library";
+import { getPromptGroup, isCollectedPrompt } from "../lib/prompt-group";
+import { PromptGroupSteps } from "./PromptGroupSteps";
 import { showToast } from "../lib/toast";
 
 interface PromptPreviewModalProps {
@@ -17,6 +19,8 @@ interface PromptPreviewModalProps {
   onClose: () => void;
   onCopy: () => void;
   onSave: (content: string) => void;
+  onEditGroup?: () => void;
+  onSaveGroup?: (group: PromptGroup) => void;
   onToggleFavorite: () => void;
   onUsePrompt?: () => void;
   onOptimize?: () => void;
@@ -38,6 +42,8 @@ export function PromptPreviewModal({
   onClose,
   onCopy,
   onSave,
+  onEditGroup,
+  onSaveGroup,
   onToggleFavorite,
   onUsePrompt,
   onOptimize,
@@ -45,6 +51,8 @@ export function PromptPreviewModal({
   showLibraryActions = true,
   allowEditing = true
 }: PromptPreviewModalProps) {
+  const collected = Boolean(record && isCollectedPrompt(record));
+  const group = record ? getPromptGroup(record) : null;
   const [expandedSections, setExpandedSections] = useState<PromptOutputFormat[]>(["cnPrompt"]);
   const [isEditing, setIsEditing] = useState(false);
   const [draftContent, setDraftContent] = useState("");
@@ -181,6 +189,7 @@ export function PromptPreviewModal({
             <header className="prompt-preview-header">
               <div className="min-w-0 flex-1">
                 <h2 id="prompt-preview-title">{record.title || record.content.slice(0, 32)}</h2>
+                {collected ? (group?.notes ? <p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-white/55">{group.notes}</p> : null) : <>
                 <div className="prompt-asset-tags">
                   {record.tags.slice(0, 4).map((tag) => <span key={tag}>{tag}</span>)}
                 </div>
@@ -191,12 +200,14 @@ export function PromptPreviewModal({
                   <span>v{record.version ?? "1.0"}</span>
                 </div>
                 <p className="prompt-preview-source">来源：{sourceLabel ?? (record.source === "ai-generated" ? "AI 生成" : record.source === "system-template" || record.id.startsWith("seed-") ? "系统模板" : "用户创建")}</p>
+                </>}
               </div>
               {showLibraryActions ? <button type="button" className={`prompt-preview-favorite ${isFavorite ? "is-favorite" : ""}`} onClick={onToggleFavorite} aria-label={isFavorite ? "取消收藏" : "收藏"}><Heart className="h-4 w-4" fill={isFavorite ? "currentColor" : "none"} /></button> : null}
               <button type="button" onClick={onClose} aria-label="关闭预览"><X className="h-4 w-4" /></button>
             </header>
 
             <div className="prompt-preview-content">
+              {collected && group ? <PromptGroupSteps key={record.id} group={group} onSave={onSaveGroup} /> : <>
               {(["cnPrompt", "enPrompt", "structuredPrompt"] as PromptOutputFormat[]).map((format) => {
                 const sectionContent = record.contentVariants?.[format] ?? (record.format === format ? record.content : "");
                 const hasContent = Boolean(sectionContent);
@@ -229,6 +240,7 @@ export function PromptPreviewModal({
                   </section>
                 );
               })}
+              </>}
               <section className="prompt-preview-cases">
                 <div className="prompt-preview-cases-heading"><span>示例效果 {exampleIds.length}/3</span></div>
                 {exampleIds.length > 0 ? (
@@ -259,6 +271,7 @@ export function PromptPreviewModal({
             </div>
 
             <footer className="prompt-preview-actions">
+              {collected ? (allowEditing && onEditGroup ? <button type="button" onClick={onEditGroup}><PencilLine className="h-4 w-4" />编辑</button> : null) : <>
               <button type="button" onClick={onCopy}>{isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{isCopied ? "已复制" : "一键复制 Prompt"}</button>
               {allowEditing ? isEditing ? (
                 <button type="button" onClick={() => { onSave(draftContent); setIsEditing(false); }}><Check className="h-4 w-4" />保存编辑</button>
@@ -275,6 +288,7 @@ export function PromptPreviewModal({
               ) : null}
               {onUsePrompt ? <button type="button" className="prompt-preview-primary" onClick={onUsePrompt}><Image className="h-4 w-4" />发送到图像工坊</button> : null}
               {onOptimize ? <button type="button" className="prompt-preview-primary" onClick={onOptimize}><Sparkles className="h-4 w-4" />AI 优化 Prompt</button> : null}
+              </>}
             </footer>
           </motion.section>
           <ImagePreviewModal

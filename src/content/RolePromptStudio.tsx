@@ -359,7 +359,7 @@ export function RolePromptStudio(props: {
     : [];
 
   return (
-    <div className="creator-workbench">
+    <div className={`creator-workbench ${outputs.length > 0 ? "has-results" : ""}`}>
       <header className="creator-workbench-hero">
         <h1>创作提示词</h1>
         <p>描述你的想法，让 AI 帮你生成专业提示词。</p>
@@ -546,7 +546,7 @@ export function RolePromptStudio(props: {
           <div className="creator-error-state">{generationResult.message}</div>
         ) : null}
 
-        {outputs.length === 0 ? (
+        {outputs.length === 0 ? generationResult && !generationResult.ok ? null : (
           <div className="creator-result-empty">输入创意并开始生成，结果会在这里进入编辑工作流。</div>
         ) : (
           <div className="creator-output-stack">
@@ -591,10 +591,10 @@ export function RolePromptStudio(props: {
                     <textarea
                       value={editingText}
                       onChange={(event) => setEditingText(event.target.value)}
-                      className="form-field creator-output-editor"
+                      className={`form-field creator-output-editor ${item.format === "structuredPrompt" ? "is-structured" : ""}`}
                     />
                   ) : (
-                    <pre className="creator-output-content">{item.text}</pre>
+                    <pre className={`creator-output-content ${item.format === "structuredPrompt" ? "is-structured" : ""}`}>{item.text}</pre>
                   ) : null}
                 </article>
               );

@@ -96,7 +96,13 @@ export interface PromptLinkedImage {
   createdAt: string;
 }
 
+export interface PromptGroup {
+  notes: string;
+  steps: Array<{ name: string; content: string }>;
+}
+
 export interface SavedPromptRecord {
+  group?: PromptGroup;
   id: string;
   title: string;
   createdAt: string;

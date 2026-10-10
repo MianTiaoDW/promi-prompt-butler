@@ -11,8 +11,7 @@ import {
   markPromptTaskGenerating,
   recoverInterruptedTasks
 } from "../lib/task-broker";
-import { importSeedPrompts, ensureSeedCategories } from "../lib/prompt-library";
-import { SEED_PROMPTS } from "../lib/seed-prompts";
+import { removeRetiredSeedPrompts } from "../lib/prompt-library";
 import type { RuntimeRequestMessage } from "../types/runtime";
 import {
   sessionStorageGet,
@@ -50,27 +49,7 @@ async function updateConnectionStatus(connectionStatus: ConnectionStatus) {
   });
 }
 
-async function tryImportSeedPrompts() {
-  // 角色设定种子提示词归入"收藏"（角色设定 tab 是 AI 生成工具，不放浏览器视图）
-  const remapped = SEED_PROMPTS.map((p) =>
-    p.category === "角色设定" ? { ...p, category: "收藏" } : p
-  );
-  const seedCategories = [...new Set(remapped.map((p) => p.category))];
-  await ensureSeedCategories(seedCategories);
-  const count = await importSeedPrompts(remapped);
-  if (count > 0) {
-    console.log(`[Prompt Butler] 已导入 ${count} 条内置提示词，分类：${seedCategories.join("、")}`);
-  }
-}
-
-// 首次安装时导入
-chrome.runtime.onInstalled.addListener(() => {
-  console.log("[Prompt Butler] 扩展已安装。");
-  void tryImportSeedPrompts();
-});
-
-// 每次 Service Worker 启动也检查（覆盖已安装但未导入的情况）
-void tryImportSeedPrompts();
+void removeRetiredSeedPrompts();
 
 const APP_WINDOW_PATH = "options.html?view=app";
 const APP_WINDOW_SESSION_KEY = "prompt-butler-app-window-id";

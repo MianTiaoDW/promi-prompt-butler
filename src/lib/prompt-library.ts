@@ -1,5 +1,5 @@
 import { storageGet, storageSet } from "./storage";
-import { SEED_PROMPTS } from "./seed-prompts";
+import { RETIRED_SEED_IDS } from "./seed-prompts";
 import type {
   PromptFolder,
   PromptOutputFormat,
@@ -28,7 +28,6 @@ export const CORE_TABS: readonly string[] = ["角色设定", "图像生成", "�
 export const CUSTOM_TABS_KEY = "prompt-butler-custom-tabs";
 const DELETED_TABS_KEY = "prompt-butler-deleted-tabs";
 const TAB_ORDER_KEY = "prompt-butler-tab-order";
-const DELETED_PROMPT_IDS_KEY = "prompt-butler-deleted-prompt-ids";
 
 export async function getCustomTabs(): Promise<string[]> {
   return storageGet<string[]>(CUSTOM_TABS_KEY, []);
@@ -82,8 +81,9 @@ export async function renameCustomTab(oldName: string, newName: string) {
   const tabs = await getCustomTabs();
   const trimmedName = newName.trim();
   const idx = tabs.indexOf(oldName);
+  const visibleTabs = await getVisibleTabs();
 
-  if (idx === -1) {
+  if (CORE_TABS.includes(oldName) || !visibleTabs.includes(oldName)) {
     throw new Error("预设不存在。");
   }
 
@@ -92,15 +92,24 @@ export async function renameCustomTab(oldName: string, newName: string) {
   }
 
   if (
-    DEFAULT_PROMPT_TABS.includes(trimmedName as (typeof DEFAULT_PROMPT_TABS)[number]) ||
-    tabs.some((t, i) => i !== idx && t === trimmedName)
+    CORE_TABS.includes(trimmedName) ||
+    (trimmedName !== oldName && DEFAULT_PROMPT_TABS.includes(trimmedName as (typeof DEFAULT_PROMPT_TABS)[number])) ||
+    visibleTabs.some((tab) => tab !== oldName && tab === trimmedName)
   ) {
     throw new Error("同名预设已存在。");
   }
+  if (trimmedName === oldName) return tabs;
 
   const next = [...tabs];
-  next[idx] = trimmedName;
+  if (idx === -1) {
+    next.push(trimmedName);
+    const deletedTabs = await storageGet<string[]>(DELETED_TABS_KEY, []);
+    await storageSet(DELETED_TABS_KEY, [...deletedTabs, oldName]);
+  } else {
+    next[idx] = trimmedName;
+  }
   await storageSet(CUSTOM_TABS_KEY, next);
+  await saveTabOrder(visibleTabs.map((tab) => tab === oldName ? trimmedName : tab));
 
   // Update prompt categories referencing the old name
   const favorites = await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
@@ -125,6 +134,18 @@ export async function deleteTab(name: string): Promise<{ customTabs: string[]; v
   if (CORE_TABS.includes(name)) {
     throw new Error("核心标签不能删除。");
   }
+
+  // Keep the contents accessible after removing their category.
+  const records = await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
+  await storageSet(PROMPT_STORAGE_KEYS.favorites, records.map((record) =>
+    record.category === name || record.category.startsWith(`${name}/`)
+      ? { ...record, category: `收藏${record.category.slice(name.length)}` }
+      : record
+  ));
+  const folders = await storageGet<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []);
+  await storageSet(PROMPT_STORAGE_KEYS.folders, folders.map((folder) =>
+    folder.scope === name ? { ...folder, scope: "收藏" } : folder
+  ));
 
   // Remove from custom tabs if applicable
   let customTabs = await getCustomTabs();
@@ -216,7 +237,7 @@ export async function savePromptToFavorites(input: {
 
 export async function updateFavoritePrompt(
   promptId: string,
-  patch: Partial<Pick<SavedPromptRecord, "title" | "content" | "category" | "tags" | "isFavorite" | "isFrequent" | "lastUsedAt" | "versions" | "usedCount" | "linkedImages" | "exampleImageIds" | "imageStorageVersion" | "version" | "usageCount" | "lastUsed" | "source" | "contentVariants">>
+  patch: Partial<Pick<SavedPromptRecord, "group" | "title" | "content" | "category" | "tags" | "isFavorite" | "isFrequent" | "lastUsedAt" | "versions" | "usedCount" | "linkedImages" | "exampleImageIds" | "imageStorageVersion" | "version" | "usageCount" | "lastUsed" | "source" | "contentVariants">>
 ) {
   const existing = await storageGet<SavedPromptRecord[]>(
     PROMPT_STORAGE_KEYS.favorites,
@@ -379,88 +400,18 @@ export function searchPromptRecords(records: SavedPromptRecord[], searchQuery: s
   });
 }
 
-// --- 种子数据导入 ---
-
-export async function importSeedPrompts(seeds: SavedPromptRecord[]): Promise<number> {
-  const existing = await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
-  const deletedIds = new Set(await storageGet<string[]>(DELETED_PROMPT_IDS_KEY, []));
-  const existingIds = new Set(existing.map((r) => r.id));
-  const newRecords = seeds.filter((r) => !existingIds.has(r.id) && !deletedIds.has(r.id));
-
-  if (newRecords.length === 0) return 0;
-
-  await storageSet(PROMPT_STORAGE_KEYS.favorites, [...newRecords, ...existing]);
-  return newRecords.length;
-}
-
-export async function rememberDeletedPrompt(promptId: string) {
-  if (!promptId.startsWith("seed-")) return;
-  const deletedIds = await storageGet<string[]>(DELETED_PROMPT_IDS_KEY, []);
-  if (!deletedIds.includes(promptId)) {
-    await storageSet(DELETED_PROMPT_IDS_KEY, [...deletedIds, promptId]);
-  }
-}
-
-export async function ensureSeedCategories(categories: string[]) {
-  const tabs = await getCustomTabs();
-  const deletedTabs = await storageGet<string[]>(DELETED_TABS_KEY, []);
-  let changed = false;
-
-  for (const cat of categories) {
-    const isDefault = DEFAULT_PROMPT_TABS.includes(cat as (typeof DEFAULT_PROMPT_TABS)[number]);
-    const isCustom = tabs.includes(cat);
-    const isDeleted = deletedTabs.includes(cat);
-    if (!isDefault && !isCustom && !isDeleted) {
-      tabs.push(cat);
-      changed = true;
-    }
-  }
-
-  if (changed) {
-    await storageSet(CUSTOM_TABS_KEY, tabs);
-  }
-}
-
-/** 种子提示词默认文件夹名称 */
-export const SEED_DEFAULT_FOLDER = "默认内置提示词";
-
-/** 种子提示词原始分类 → 顶层分类映射（角色设定归入收藏） */
-export const SEED_CATEGORY_MAP: Record<string, string> = {
-  "角色设定": "收藏",
-  "产品精修": "产品精修",
-  "品牌设计": "品牌设计",
-  "视频生成": "视频生成"
-};
-
-export async function ensureSeedFolders() {
-  const existingFolders = await storageGet<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []);
-  let changed = false;
-
-  const scopes = [...new Set(Object.values(SEED_CATEGORY_MAP))];
-
-  for (const scope of scopes) {
-    const exists = existingFolders.some(
-      (f) => f.scope === scope && f.name === SEED_DEFAULT_FOLDER
-    );
-    if (!exists) {
-      const scopeFolders = existingFolders.filter((f) => f.scope === scope);
-      const nextOrder = scopeFolders.length === 0
-        ? 0
-        : Math.max(...scopeFolders.map((f) => f.order ?? 0)) + 1;
-      existingFolders.push({
-        id: `seed-default-${scope}-${Date.now()}`,
-        name: SEED_DEFAULT_FOLDER,
-        scope,
-        createdAt: new Date().toISOString(),
-        order: nextOrder
-      });
-      changed = true;
-    }
-  }
-
-  if (changed) {
-    await storageSet(PROMPT_STORAGE_KEYS.folders, existingFolders);
-  }
+// Remove only the retired built-in records; user-owned records and occupied folders stay intact.
+export async function removeRetiredSeedPrompts() {
+  const records = await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
+  const remaining = records.filter((record) => !RETIRED_SEED_IDS.has(record.id));
+  const folders = await storageGet<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []);
+  const remainingFolders = folders.filter((folder) =>
+    !folder.id.startsWith("seed-default-") || remaining.some((record) =>
+      record.category === `${folder.scope || "收藏"}/${folder.name}`
+    )
+  );
+  if (remaining.length !== records.length) await storageSet(PROMPT_STORAGE_KEYS.favorites, remaining);
+  if (remainingFolders.length !== folders.length) await storageSet(PROMPT_STORAGE_KEYS.folders, remainingFolders);
 }
 
 /** 清理之前版本误创建的错误标签 */
@@ -478,29 +429,6 @@ export async function cleanupInvalidTabs() {
 
   const deletedTabs = await storageGet<string[]>(DELETED_TABS_KEY, []);
   await storageSet(DELETED_TABS_KEY, deletedTabs.filter((t) => !INVALID_LEGACY_TABS.includes(t)));
-}
-
-export async function migrateSeedCategories() {
-  const existing = await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
-  const seedTargetCategory = new Map<string, string>();
-  for (const seed of SEED_PROMPTS) {
-    const baseCategory = SEED_CATEGORY_MAP[seed.category] || seed.category;
-    seedTargetCategory.set(seed.id, `${baseCategory}/${SEED_DEFAULT_FOLDER}`);
-  }
-
-  let changed = false;
-  const migrated = existing.map((r) => {
-    const target = seedTargetCategory.get(r.id);
-    if (!target || r.category === target) return r;
-    changed = true;
-    return { ...r, category: target, updatedAt: new Date().toISOString() };
-  });
-
-  if (changed) {
-    await storageSet(PROMPT_STORAGE_KEYS.favorites, migrated);
-  }
-
-  return { records: migrated, changed };
 }
 
 // --- 提示词排序 ---

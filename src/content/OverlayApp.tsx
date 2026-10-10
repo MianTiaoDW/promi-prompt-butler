@@ -125,6 +125,15 @@ export function OverlayApp({
   }, []);
 
   useEffect(() => {
+    const refreshCategories = () => {
+      void getCustomTabs().then(setCustomTabs);
+      void getVisibleTabs().then(setVisibleTabs);
+    };
+    window.addEventListener("prompt-library-updated", refreshCategories);
+    return () => window.removeEventListener("prompt-library-updated", refreshCategories);
+  }, []);
+
+  useEffect(() => {
     void migrateLegacyPromptImages().catch((error) => {
       console.warn("[Prompt Butler] 旧图片数据迁移未完成：", error);
     });
@@ -210,7 +219,6 @@ export function OverlayApp({
   const activeCategoryIndex = libraryTabs.indexOf(activeTab);
   const canSelectPreviousCategory = activeCategoryIndex > 0;
   const canSelectNextCategory = activeCategoryIndex < libraryTabs.length - 1;
-  const availableCategories: string[] = ["收藏", ...libraryTabs];
   const activeWorkspace = activeTab === "角色设定"
     ? "identity"
     : activeTab === "图像生成"
@@ -273,6 +281,7 @@ export function OverlayApp({
       setPanelErrorMessage("");
       const next = await addCustomTab(tabNameDraft);
       setCustomTabs(next);
+      setVisibleTabs(await getVisibleTabs());
       setIsCreatingTab(false);
       setTabNameDraft("");
       setActiveTab(tabNameDraft.trim());
@@ -286,6 +295,7 @@ export function OverlayApp({
       setPanelErrorMessage("");
       const next = await renameCustomTab(oldName, tabNameDraft);
       setCustomTabs(next);
+      setVisibleTabs(await getVisibleTabs());
       const newName = tabNameDraft.trim();
       if (activeTab === oldName) {
         setActiveTab(newName);
@@ -302,7 +312,7 @@ export function OverlayApp({
     setCustomTabs(nextCustom);
     setVisibleTabs(nextVisible);
     if (activeTab === name) {
-      setActiveTab(DEFAULT_PROMPT_TABS[0]);
+      setActiveTab("收藏");
     }
     setEditingTabName(null);
     setTabNameDraft("");
@@ -444,17 +454,17 @@ export function OverlayApp({
         <div className="fluxora-background" aria-hidden="true">
         </div>
         <header className={`glass-titlebar fluxora-titlebar flex h-14 items-center justify-between px-4 ${embedded ? "" : "drag-handle cursor-move"}`}>
-          <div className="flex items-center gap-3">
+          <div className="workspace-brand flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.08]">
               <img src={iconUrl} alt="" className="h-9 w-9 rounded-xl" />
             </div>
             <div>
-              <div className="text-sm font-semibold tracking-[-0.02em] text-white">
+              <div className="workspace-brand-name text-sm font-semibold tracking-[-0.02em] text-white" title="提示词生成管家">
                 提示词生成管家
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="workspace-system-controls flex items-center gap-2">
             <div data-no-drag className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-2 text-xs text-white/70">
               <span
                 className={["connection-status-dot", statusDotClassName].join(" ")}
@@ -497,8 +507,8 @@ export function OverlayApp({
         >
           <nav className="workspace-switcher" aria-label="工作区">
             {[
-              { id: "identity", label: "创作" },
               { id: "library", label: "提示词库" },
+              { id: "identity", label: "创作" },
               { id: "image", label: "图像工坊" }
             ].map((workspace) => (
               <button
@@ -614,7 +624,7 @@ export function OverlayApp({
             className="library-category-list flex w-max gap-2"
           >
             {libraryTabs.map((tab) => {
-              const isCustom = customTabs.includes(tab);
+              const isCustom = !CORE_TABS.includes(tab);
               const isEditing = editingTabName === tab;
 
               if (isEditing) {
@@ -860,7 +870,7 @@ export function OverlayApp({
               />
             ) : activeTab === "图像生成" ? (
               <ImageStudio settings={settings} isServiceReady={isServiceReady} />
-            ) : availableCategories.includes(activeTab) ? (
+            ) : (
               <FavoritesStudio
                 settings={settings}
                 isServiceReady={isServiceReady}
@@ -870,23 +880,6 @@ export function OverlayApp({
                 onPreviewChange={handlePreviewChange}
                 onOpenImageStudio={() => openWorkspace("image")}
               />
-            ) : (
-              <div className="glass-card border-dashed px-4 py-6">
-                <div className="text-sm font-medium text-white/85">{activeTab} 模块稍后接入</div>
-                <p className="mt-2 text-sm leading-6 text-white/55">
-                  当前重点已经切到“角色设定”主工作流。收藏夹、Nano 精修、AI 视频运镜等模块会在后续阶段继续补全。
-                </p>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-white/55">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
-                    <div className="text-white/35">推理模型</div>
-                    <div className="mt-1 break-all text-white/78">{settings.reasoningModel || "未设置"}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
-                    <div className="text-white/35">视觉模型</div>
-                    <div className="mt-1 break-all text-white/78">{settings.visionModel || "未设置"}</div>
-                  </div>
-                </div>
-              </div>
             )}
           </motion.div>
           </AnimatePresence>

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   ArrowUp,
   ArrowDown,
   Check,
   Copy,
-  Database,
   Download,
   Upload,
   LoaderCircle,
@@ -18,31 +18,22 @@ import {
 } from "lucide-react";
 
 import { useChromeStorage } from "../hooks/useChromeStorage";
-import { storageGet } from "../lib/storage";
 import { saveImageWorkspace } from "../lib/image-library";
 import {
   createPromptFolder,
   deletePromptFolder,
   moveFavoriteUp,
   moveFavoriteDown,
-  migrateSeedCategories,
   pinFavoriteToTop,
   PROMPT_STORAGE_KEYS,
   recommendPromptTags,
   renamePromptFolder,
-  rememberDeletedPrompt,
   reorderPromptFolders,
   searchPromptRecords,
   updateFavoritePrompt,
-  importSeedPrompts,
-  ensureSeedCategories,
-  ensureSeedFolders,
-  SEED_CATEGORY_MAP,
-  SEED_DEFAULT_FOLDER
 } from "../lib/prompt-library";
-import { SEED_PROMPTS } from "../lib/seed-prompts";
 import { sendRuntimeMessage } from "../lib/runtime";
-import { exportPromptsAsJson } from "../lib/backup";
+import { exportPromptsAsZip, importPromptsFromFile } from "../lib/backup";
 import { showToast } from "../lib/toast";
 import { deletePromptExampleImages } from "../lib/example-images";
 import type {
@@ -51,6 +42,7 @@ import type {
 } from "../types/prompt";
 import type { PromptFolder } from "../types/prompt";
 import type { ExtensionSettings } from "../types/settings";
+import { formatPromptGroup, getPromptGroup, isCollectedPrompt } from "../lib/prompt-group";
 import { PromptCard } from "./PromptCard";
 import { PromptPreviewModal } from "./PromptPreviewModal";
 import { PromptOptimizePanel } from "./PromptOptimizePanel";
@@ -75,7 +67,8 @@ export function FavoritesStudio(props: {
   onPreviewChange?: (promptId: string | null) => void;
 }) {
   const { settings, isServiceReady, activeCategory = "收藏", searchQuery = "", onOpenImageStudio, assetFilter = "all", openPromptRequest, onPreviewChange } = props;
-  const isCollectionCategory = activeCategory === "收藏";
+  const [isBackupBusy, setIsBackupBusy] = useState(false);
+  const libraryRef = useRef<HTMLDivElement | null>(null);
   const favoritesStorage = useChromeStorage<SavedPromptRecord[]>(
     PROMPT_STORAGE_KEYS.favorites,
     []
@@ -88,45 +81,26 @@ export function FavoritesStudio(props: {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [panelMessage, setPanelMessage] = useState("");
-  const [draftCategory, setDraftCategory] = useState(activeCategory);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [folderNameDraft, setFolderNameDraft] = useState("");
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
-  const [promptDraft, setPromptDraft] = useState("");
+  const [editingGroupRecord, setEditingGroupRecord] = useState<SavedPromptRecord | null>(null);
+  const [promptNotesDraft, setPromptNotesDraft] = useState("");
+  const [promptStepsDraft, setPromptStepsDraft] = useState([{ name: "", content: "" }]);
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+  const resetPromptDraft = () => {
+    setEditingGroupRecord(null);
+    setPromptNotesDraft("");
+    setPromptStepsDraft([{ name: "", content: "" }]);
+  };
   const [promptTitleDraft, setPromptTitleDraft] = useState("");
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState("");
-  const [isImportingSeed, setIsImportingSeed] = useState(false);
   const [previewRecord, setPreviewRecord] = useState<SavedPromptRecord | null>(null);
   const [optimizationRecord, setOptimizationRecord] = useState<SavedPromptRecord | null>(null);
-
-  const handleImportSeeds = async () => {
-    setIsImportingSeed(true);
-    try {
-      // 将种子提示词归入各分类下的"默认内置提示词"文件夹
-      const remapped = SEED_PROMPTS.map((p) => {
-        const baseCategory = SEED_CATEGORY_MAP[p.category] || p.category;
-        return { ...p, source: "system-template" as const, category: `${baseCategory}/${SEED_DEFAULT_FOLDER}` };
-      });
-      const cats = [...new Set(remapped.map((p) => p.category.split("/")[0]))];
-      await ensureSeedCategories(cats);
-      await ensureSeedFolders();
-      const { records: migratedRecords, changed: migratedChanged } = await migrateSeedCategories();
-      const count = await importSeedPrompts(remapped);
-      const latest = migratedChanged ? migratedRecords : await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
-      await setFavorites(latest);
-      setPanelMessage(`已加载 ${latest.length} 条提示词（含内置库）`);
-    } finally {
-      setIsImportingSeed(false);
-    }
-  };
-
-  useEffect(() => {
-    void handleImportSeeds();
-  }, []);
 
   const { value: favorites, setValue: setFavorites, isLoading } = favoritesStorage;
   const { value: folders, setValue: setFolders } = foldersStorage;
@@ -158,20 +132,19 @@ export function FavoritesStudio(props: {
     if (orderDiff !== 0) return orderDiff;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
-  const seedIds = useMemo(() => new Set(SEED_PROMPTS.map((prompt) => prompt.id)), []);
   const categoryAssetRecords = useMemo(() => {
     const categoryRecords = activeCategory === "收藏"
       ? favorites
       : favorites.filter((record) => record.category === activeCategory || record.category.startsWith(`${activeCategory}/`));
     const filteredRecords = assetFilter === "favorite"
-      ? categoryRecords.filter((record) => record.isFavorite ?? !seedIds.has(record.id))
+      ? categoryRecords.filter((record) => record.isFavorite ?? true)
       : categoryRecords;
     return searchPromptRecords(filteredRecords, searchQuery).sort(
       (left, right) =>
         new Date(right.updatedAt ?? right.createdAt).getTime() -
         new Date(left.updatedAt ?? left.createdAt).getTime()
     );
-  }, [activeCategory, assetFilter, favorites, searchQuery, seedIds]);
+  }, [activeCategory, assetFilter, favorites, searchQuery]);
 
   useEffect(() => {
     if (!copiedId) {
@@ -186,7 +159,6 @@ export function FavoritesStudio(props: {
   }, [copiedId]);
 
   useEffect(() => {
-    setDraftCategory(scopedCategoryName);
   }, [scopedCategoryName]);
 
   const handleCopy = async (record: SavedPromptRecord) => {
@@ -229,7 +201,7 @@ export function FavoritesStudio(props: {
   }, [onPreviewChange, previewRecord?.id]);
 
   const toggleRecordFavorite = async (record: SavedPromptRecord) => {
-    const currentFavoriteState = record.isFavorite ?? !seedIds.has(record.id);
+    const currentFavoriteState = record.isFavorite ?? true;
     const updated = await updateFavoritePrompt(record.id, { isFavorite: !currentFavoriteState });
     if (updated) {
       await setFavorites((current) =>
@@ -397,9 +369,12 @@ export function FavoritesStudio(props: {
   };
 
   const handleCreatePrompt = async () => {
-    const trimmedPrompt = promptDraft.trim();
+    const steps = promptStepsDraft.map((step) => ({ name: step.name.trim(), content: step.content.trim() }));
+    const notes = promptNotesDraft.trim();
+    const group = { notes, steps };
+    const trimmedPrompt = formatPromptGroup(group);
 
-    if (!trimmedPrompt || !activeFolder) {
+    if (isSavingPrompt || !promptTitleDraft.trim() || steps.some((step) => !step.content)) {
       return;
     }
 
@@ -411,72 +386,86 @@ export function FavoritesStudio(props: {
       model: settings.reasoningModel || settings.visionModel || "未设置模型",
       format: "cnPrompt",
       content: trimmedPrompt,
-      category: `${activeCategory}/${activeFolder.name}`,
-      tags: recommendPromptTags(trimmedPrompt)
+      group,
+      category: activeFolder ? `${activeFolder.scope || activeCategory}/${activeFolder.name}` : activeCategory,
+      source: "user-created",
+      tags: []
     };
 
-    await setFavorites((current) => [record, ...current]);
-    setPromptDraft("");
+    setIsSavingPrompt(true);
+    try {
+      if (editingGroupRecord) {
+        const updated = await updateFavoritePrompt(editingGroupRecord.id, { title: record.title, content: record.content, group, tags: [] });
+        if (!updated) throw new Error("提示词已删除");
+        await setFavorites((current) => current.map((item) => item.id === updated.id ? updated : item));
+        setPreviewRecord(updated);
+      } else {
+        await setFavorites((current) => [record, ...current]);
+      }
+    } catch {
+      showToast("保存失败，请重试");
+      return;
+    } finally {
+      setIsSavingPrompt(false);
+    }
+    resetPromptDraft();
     setPromptTitleDraft("");
     setIsCreatingPrompt(false);
-    setPanelMessage(`已添加提示词到"${activeFolder.name}"。`);
+    setPanelMessage(`已添加提示词到“${activeFolder?.name || activeCategory}”。`);
+  };
+
+  const editPromptGroup = (record: SavedPromptRecord) => {
+    const group = getPromptGroup(record);
+    setEditingGroupRecord(record);
+    setPromptTitleDraft(record.title);
+    setPromptNotesDraft(group.notes);
+    setPromptStepsDraft(group.steps.map((step) => ({ ...step })));
+    setPreviewRecord(null);
+    setIsCreatingPrompt(true);
+  };
+
+  const savePromptGroup = async (record: SavedPromptRecord, group: import("../types/prompt").PromptGroup) => {
+    const updated = await updateFavoritePrompt(record.id, { group, content: formatPromptGroup(group), tags: [] });
+    if (updated) {
+      await setFavorites((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setPreviewRecord(updated);
+    }
   };
 
   const handleDeletePrompt = async (record: SavedPromptRecord) => {
     await deletePromptExampleImages(record.id);
-    await rememberDeletedPrompt(record.id);
     await setFavorites((current) => current.filter((item) => item.id !== record.id));
     setPanelMessage("提示词已删除。");
     showToast("提示词已删除");
   };
 
   const handleExport = async () => {
+    if (isBackupBusy) return;
+    setIsBackupBusy(true);
     try {
-      await exportPromptsAsJson();
-      showToast("提示词已导出~");
-    } catch {
-      showToast("导出失败，请重试。");
-    }
+      await exportPromptsAsZip();
+      showToast("提示词和示例图已导出为 ZIP");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "导出失败，请重试。");
+    } finally { setIsBackupBusy(false); }
   };
 
   const handleImport = () => {
+    if (isBackupBusy) return;
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".json";
+    input.accept = ".zip,.json";
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
+      setIsBackupBusy(true);
       try {
-        const text = await file.text();
-        const data = JSON.parse(text);
-
-        if (!data.version || !Array.isArray(data.favorites)) {
-          throw new Error("备份文件结构不完整，缺少必要字段。");
-        }
-
-        const backupFavorites = data.favorites as SavedPromptRecord[];
-        const backupFolders = (data.folders as PromptFolder[]) ?? [];
-
-        // 直接使用当前 React 状态做去重，避免 storage 读写竞争
-        const existingIds = new Set(favorites.map((r) => r.id));
-        const newFavorites = backupFavorites.filter((r) => !existingIds.has(r.id));
-        const mergedFavorites = [...newFavorites, ...favorites];
-
-        const existingFolderIds = new Set(folders.map((f) => f.id));
-        const newFolders = backupFolders.filter((f) => !existingFolderIds.has(f.id));
-        const mergedFolders = [...newFolders, ...folders];
-
-        // 通过 setState 统一写入 React 状态和 storage
-        await Promise.all([setFavorites(mergedFavorites), setFolders(mergedFolders)]);
-
-        if (newFavorites.length > 0 || newFolders.length > 0) {
-          showToast(`已导入 ${newFavorites.length} 条提示词~`);
-        } else {
-          showToast("导入完成，没有新增内容。");
-        }
+        const result = await importPromptsFromFile(file);
+        window.dispatchEvent(new Event("prompt-library-updated"));
+        showToast(result.favorites || result.folders ? `已导入 ${result.favorites} 个提示词组、${result.images} 张示例图` : "导入完成，没有新增内容。");
       } catch (error) {
         showToast(error instanceof Error ? error.message : "导入失败。");
-      }
+      } finally { setIsBackupBusy(false); }
     };
     input.click();
   };
@@ -564,11 +553,91 @@ export function FavoritesStudio(props: {
     }
   };
 
+  const promptCreateDialog = isCreatingPrompt ? (
+            <div
+              className="absolute inset-x-0 bottom-0 top-14 z-[2147483647] flex items-center justify-center bg-black/70 px-5 py-6 backdrop-blur-sm"
+              onClick={() => {
+                setIsCreatingPrompt(false);
+                resetPromptDraft();
+                setPromptTitleDraft("");
+              }}
+            >
+              <div
+                className="aurora-shell min-h-0 max-h-full w-full max-w-[460px] overflow-y-auto overscroll-contain rounded-[1.35rem] p-5"
+                role="dialog" aria-modal="true" aria-label="新建提示词组"
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                <div className="section-label mb-3">
+                  {editingGroupRecord ? "编辑提示词组" : "新建提示词组"} · {activeFolder?.name || (activeCategory === "收藏" ? "全部提示词" : activeCategory)}
+                </div>
+                <label className="mb-2 block text-sm text-white/70" htmlFor="prompt-group-title">提示词组标题</label>
+                <input
+                  id="prompt-group-title"
+                  autoFocus
+                  value={promptTitleDraft}
+                  onChange={(e) => {
+                    setPromptTitleDraft(e.target.value);
+                  }}
+                  placeholder="为这组提示词起个名字"
+                  className="form-field mb-3 w-full rounded-xl px-4 py-2.5 text-sm"
+                />
+                <label className="mb-2 block text-sm text-white/70" htmlFor="prompt-group-notes">备注（可选）</label>
+                <textarea id="prompt-group-notes" value={promptNotesDraft} onChange={(event) => setPromptNotesDraft(event.target.value)} className="form-field mb-4 min-h-[72px] w-full resize-y rounded-xl px-4 py-3 text-sm" placeholder="记录用途、使用顺序或注意事项" />
+                <div className="space-y-3">
+                  {promptStepsDraft.map((step, index) => (
+                    <section key={index} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h3 className="text-sm font-medium text-white/90">{index + 1}</h3>
+                        {promptStepsDraft.length > 1 ? <button type="button" className="icon-button" aria-label={`删除第 ${index + 1} 步`} onClick={() => setPromptStepsDraft((current) => current.filter((_, position) => position !== index))}><Trash2 className="h-4 w-4" /></button> : null}
+                      </div>
+                      <input value={step.name} aria-label={`第 ${index + 1} 步名称`} onChange={(event) => setPromptStepsDraft((current) => current.map((item, position) => position === index ? { ...item, name: event.target.value } : item))} placeholder="步骤名称（可选）" className="form-field mb-3 w-full rounded-xl px-3 py-2.5 text-sm" />
+                      <textarea value={step.content} aria-label={`第 ${index + 1} 步正文`} onChange={(event) => setPromptStepsDraft((current) => current.map((item, position) => position === index ? { ...item, content: event.target.value } : item))} className="form-field min-h-[140px] w-full resize-y rounded-xl px-3 py-3 text-sm leading-6" placeholder="输入这一步的提示词正文" />
+                    </section>
+                  ))}
+                </div>
+                <button type="button" className="ghost-button mt-3 w-full py-3 text-sm" onClick={() => setPromptStepsDraft((current) => [...current, { name: "", content: "" }])}><Plus className="h-4 w-4" />新增提示词步骤</button>
+                <div className="mt-4 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreatingPrompt(false);
+                      resetPromptDraft();
+                      setPromptTitleDraft("");
+                    }}
+                    className="ghost-button px-5 py-2.5 text-sm"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleCreatePrompt();
+                    }}
+                    disabled={isSavingPrompt || !promptTitleDraft.trim() || promptStepsDraft.some((step) => !step.content.trim())}
+                    className="gradient-button px-5 py-2.5 text-sm disabled:opacity-40"
+                  >
+                    {isSavingPrompt ? "保存中…" : "保存提示词组"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null;
+
+  const dialogContainer = libraryRef.current?.closest(".fluxora-shell");
+  const promptEditor = promptCreateDialog && dialogContainer ? createPortal(promptCreateDialog, dialogContainer) : promptCreateDialog;
+
   const renderAssetSection = (title: string, records: SavedPromptRecord[], emptyMessage: string) => (
     <section className="prompt-asset-section">
-      <div className="prompt-asset-section-heading">
-        <h2>{title}</h2>
-        <span>{records.length}</span>
+      <div className="prompt-asset-section-heading flex-wrap">
+        <div className="flex items-center gap-2"><h2>{title}</h2><span className="text-xs text-white/50">{records.length}</span></div>
+        {assetFilter === "all" ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {!activeFolder ? <><button type="button" className="icon-button" disabled={isBackupBusy} onClick={handleImport} title="导入 ZIP 或 JSON" aria-label="导入提示词"><Upload className="h-4 w-4" /></button><button type="button" className="icon-button" disabled={isBackupBusy} onClick={() => void handleExport()} title="导出全部提示词和示例图为 ZIP" aria-label="导出提示词 ZIP">{isBackupBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}</button></> : null}
+            <button type="button" className="ghost-button px-3 py-2 text-sm" disabled={isBackupBusy} onClick={() => { setIsCreatingPrompt(true); resetPromptDraft(); setPromptTitleDraft(""); }}><Plus className="h-4 w-4" />添加提示词</button>
+          </div>
+        ) : null}
       </div>
       {records.length > 0 ? (
         <div className="prompt-asset-grid">
@@ -577,7 +646,7 @@ export function FavoritesStudio(props: {
               key={record.id}
               record={record}
               isCopied={copiedId === record.id}
-              isFavorite={record.isFavorite ?? !seedIds.has(record.id)}
+              isFavorite={record.isFavorite ?? true}
               isOptimizing={busyId === record.id}
               onCopy={() => void handleCopy(record)}
               onOpen={() => {
@@ -596,328 +665,38 @@ export function FavoritesStudio(props: {
     </section>
   );
 
+  const promptPreviewDialog = <PromptPreviewModal
+        onEditGroup={() => { if (previewRecord) editPromptGroup(previewRecord); }}
+        onSaveGroup={(group) => { if (previewRecord) void savePromptGroup(previewRecord, group); }}
+        record={previewRecord}
+        isCopied={Boolean(previewRecord && copiedId === previewRecord.id)}
+        isFavorite={Boolean(previewRecord && (previewRecord.isFavorite ?? true))}
+        onClose={() => setPreviewRecord(null)}
+        onCopy={() => { if (previewRecord) void handleCopy(previewRecord); }}
+        onSave={(content) => { if (previewRecord) void savePreviewContent(previewRecord, content); }}
+        onToggleFavorite={() => { if (previewRecord) void toggleRecordFavorite(previewRecord); }}
+        onUsePrompt={() => { if (previewRecord) void usePromptInImageStudio(previewRecord); }}
+        onOptimize={() => { if (previewRecord) setOptimizationRecord(previewRecord); }}
+      />;
+
   if (activeFolder) {
-    return (
-      <div className="space-y-4">
-        <section className="glass-card p-4">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedFolderId(null);
-                setIsCreatingPrompt(false);
-                setPromptDraft("");
-                setPromptTitleDraft("");
-              }}
-              className="ghost-button px-3 py-2 text-xs"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              返回文件夹
-            </button>
-            <div className="text-sm font-medium text-white/88">{activeFolder.name}</div>
-            <button
-              type="button"
-              onClick={() => {
-                setIsCreatingPrompt(true);
-                setPromptDraft("");
-                setPromptTitleDraft("");
-              }}
-              className="ghost-button px-3 py-2 text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              添加
-            </button>
-          </div>
-        </section>
-
-        <section className="space-y-1.5">
-          {sortedFavorites.map((record, index) => {
-            const isExpanded = expandedId === record.id;
-            const isBusy = busyId === record.id;
-            const isEditingTitle = editingTitleId === record.id;
-            const displayTitle = record.title || record.content.slice(0, 28);
-            const isFirst = index === 0;
-            const isLast = index === sortedFavorites.length - 1;
-
-            return (
-              <article
-                key={record.id}
-                className="media-card transition"
-              >
-                <div className="flex items-center gap-2 px-3 py-2">
-                  {isEditingTitle ? (
-                    <>
-                      <input
-                        value={titleDraft}
-                        onChange={(event) => {
-                          setTitleDraft(event.target.value);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            void saveTitleEdit(record);
-                          }
-                          if (event.key === "Escape") {
-                            cancelTitleEdit();
-                          }
-                        }}
-                        className="min-w-0 flex-1 rounded-lg border border-accent/35 bg-black/25 px-2 py-1 text-xs text-white outline-none"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void saveTitleEdit(record);
-                        }}
-                        className="shrink-0 rounded-md p-0.5 text-white/55 transition hover:text-accent"
-                        title="确认"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelTitleEdit}
-                        className="shrink-0 rounded-md p-0.5 text-white/55 transition hover:text-rose-300"
-                        title="取消"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="min-w-0 flex-1 truncate text-xs text-white/70">
-                        {displayTitle}
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleSortAction(record.id, "pin");
-                        }}
-                        disabled={isFirst}
-                        className="shrink-0 rounded-lg p-1 text-white/35 transition hover:text-accent disabled:cursor-not-allowed disabled:opacity-20"
-                        title="置顶"
-                      >
-                        <Pin className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleSortAction(record.id, "up");
-                        }}
-                        disabled={isFirst}
-                        className="shrink-0 rounded-lg p-1 text-white/35 transition hover:text-accent disabled:cursor-not-allowed disabled:opacity-20"
-                        title="上移"
-                      >
-                        <ArrowUp className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleSortAction(record.id, "down");
-                        }}
-                        disabled={isLast}
-                        className="shrink-0 rounded-lg p-1 text-white/35 transition hover:text-accent disabled:cursor-not-allowed disabled:opacity-20"
-                        title="下移"
-                      >
-                        <ArrowDown className="h-3.5 w-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingTitleId(record.id);
-                          setTitleDraft(record.title || "");
-                        }}
-                        className="shrink-0 rounded-lg p-1 text-white/35 transition hover:text-accent"
-                        title="重命名"
-                      >
-                        <PencilLine className="h-3.5 w-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleDeletePrompt(record);
-                        }}
-                        className="shrink-0 rounded-lg p-1 text-white/35 transition hover:text-rose-300"
-                        title="删除"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (isExpanded) {
-                        await flushPendingSave(record.id, draftContent);
-                        setExpandedId(null);
-                        setDraftContent("");
-                      } else {
-                        setExpandedId(record.id);
-                        setDraftContent(record.content);
-                        setDraftCategory(record.category);
-                      }
-                    }}
-                    className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[11px] text-white/58 transition hover:border-accent/30 hover:text-white"
-                  >
-                    {isExpanded ? "收起" : "展开"}
-                  </button>
-                </div>
-
-                {isExpanded ? (
-                  <div className="border-t border-white/5 px-3 py-3 space-y-3">
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/35">
-                      <span>{record.provider}</span>
-                      <span>·</span>
-                      <span>{record.model}</span>
-                      <span>·</span>
-                      <span>{formatTimestamp(record.updatedAt ?? record.createdAt)}</span>
-                    </div>
-
-                    <textarea
-                      value={draftContent}
-                      onChange={(event) => {
-                        const newContent = event.target.value;
-                        setDraftContent(newContent);
-                        debouncedSave(record.id, newContent);
-                      }}
-                      className="form-field min-h-[150px] w-full resize-y leading-6"
-                    />
-
-                    {autoSavedId === record.id ? (
-                      <div className="inline-flex items-center gap-1 text-[11px] text-accent/75">
-                        <Check className="h-3 w-3" />
-                        已自动保存
-                      </div>
-                    ) : null}
-
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleCopy(record);
-                        }}
-                        className="ghost-button rounded-xl px-3 py-2 text-xs"
-                      >
-                        {copiedId === record.id ? (
-                          <Check className="h-3.5 w-3.5" />
-                        ) : (
-                          <Copy className="h-3.5 w-3.5" />
-                        )}
-                        {copiedId === record.id ? "已复制" : "一键复制"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void optimizePrompt(record);
-                        }}
-                        disabled={isBusy}
-                        className="gradient-button rounded-xl px-3 py-2 text-xs"
-                      >
-                        {isBusy ? (
-                          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-3.5 w-3.5" />
-                        )}
-                        {isBusy ? "优化中..." : "AI一键优化"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleDeletePrompt(record);
-                        }}
-                        className="ghost-button rounded-xl px-3 py-2 text-xs text-rose-300 hover:text-rose-200"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        删除
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </article>
-            );
-          })}
-
-          {isCreatingPrompt ? (
-            <div
-              className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-black/70 backdrop-blur-sm"
-              onClick={() => {
-                setIsCreatingPrompt(false);
-                setPromptDraft("");
-                setPromptTitleDraft("");
-              }}
-            >
-              <div
-                className="aurora-shell mx-4 w-full max-w-lg rounded-[1.35rem] p-6"
-                onClick={(e) => {
-                  e.stopPropagation();
-                }}
-              >
-                <div className="section-label mb-3">
-                  添加提示词到「{activeFolder.name}」
-                </div>
-                <input
-                  value={promptTitleDraft}
-                  onChange={(e) => {
-                    setPromptTitleDraft(e.target.value);
-                  }}
-                  placeholder="提示词标题（可选）"
-                  className="form-field mb-3 w-full rounded-xl px-4 py-2.5 text-sm"
-                />
-                <textarea
-                  value={promptDraft}
-                  onChange={(event) => {
-                    setPromptDraft(event.target.value);
-                  }}
-                  className="form-field min-h-[160px] w-full resize-y rounded-xl px-4 py-3 text-sm leading-6"
-                  placeholder="输入新的提示词内容"
-                  autoFocus
-                />
-                <div className="mt-4 flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCreatingPrompt(false);
-                      setPromptDraft("");
-                      setPromptTitleDraft("");
-                    }}
-                    className="ghost-button px-5 py-2.5 text-sm"
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleCreatePrompt();
-                    }}
-                    disabled={!promptDraft.trim()}
-                    className="gradient-button px-5 py-2.5 text-sm disabled:opacity-40"
-                  >
-                    确认
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </section>
-      </div>
-    );
+    return <div ref={libraryRef} className="prompt-asset-library">
+      <div className="flex items-center gap-3"><button type="button" className="ghost-button px-3 py-2 text-xs" onClick={() => { setSelectedFolderId(null); setIsCreatingPrompt(false); resetPromptDraft(); }}><ArrowLeft className="h-4 w-4" />返回收藏夹</button></div>
+      {renderAssetSection(activeFolder.name, sortedFavorites, "这个收藏夹还没有提示词")}
+      {assetFilter !== "all" ? <button type="button" className="ghost-button px-3 py-2 text-sm" onClick={() => { resetPromptDraft(); setPromptTitleDraft(""); setIsCreatingPrompt(true); }}><Plus className="h-4 w-4" />添加提示词</button> : null}
+      {promptEditor}
+      {promptPreviewDialog}
+      <PromptOptimizePanel record={optimizationRecord} busy={Boolean(optimizationRecord && busyId === optimizationRecord.id)} onClose={() => { if (!busyId) setOptimizationRecord(null); }} onOptimize={(direction) => { if (optimizationRecord) void optimizePrompt(optimizationRecord, direction); }} />
+    </div>;
   }
 
   return (
-    <div className="prompt-asset-library">
+    <div ref={libraryRef} className="prompt-asset-library">
       {assetFilter === "folders" ? (
         <section className="prompt-folder-browser">
           <header>
             <div><h2>我的收藏夹</h2><span>{scopedFolders.length}</span></div>
             <div>
-              <button type="button" onClick={() => void handleImport()} title="导入"><Upload className="h-4 w-4" /></button>
-              <button type="button" onClick={() => void handleExport()} title="导出"><Download className="h-4 w-4" /></button>
               <button type="button" onClick={() => { setIsCreatingFolder(true); setFolderNameDraft(""); }} title="新建收藏夹"><Plus className="h-4 w-4" /></button>
             </div>
           </header>
@@ -952,6 +731,7 @@ export function FavoritesStudio(props: {
         renderAssetSection(assetFilter === "favorite" ? "收藏" : activeCategory === "收藏" ? "全部提示词" : activeCategory, categoryAssetRecords, assetFilter === "favorite" ? "还没有收藏 Prompt" : "当前筛选下还没有提示词")
       )}
 
+      {promptEditor}
       {panelMessage ? <p className="library-status-message">{panelMessage}</p> : null}
 
       <details className="prompt-library-management">
@@ -965,38 +745,7 @@ export function FavoritesStudio(props: {
           <div className="rounded-2xl border border-accent/35 bg-transparent px-2.5 py-1 text-xs font-semibold text-accent">
             {categoryPromptCount} 条
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            {isCollectionCategory ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => { void handleExport(); }}
-                  className="rounded-xl border border-white/10 bg-white/[0.06] p-2 text-white/50 transition hover:border-accent/30 hover:text-accent"
-                  title="导出全部提示词"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleImport}
-                  className="rounded-xl border border-white/10 bg-white/[0.06] p-2 text-white/50 transition hover:border-accent/30 hover:text-accent"
-                  title="导入提示词"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                </button>
-                <span className="w-px h-5 bg-white/10" />
-              </>
-            ) : null}
-            <button
-              type="button"
-              onClick={handleImportSeeds}
-              disabled={isImportingSeed}
-              className="rounded-xl border border-white/10 bg-white/[0.06] p-2 text-white/50 transition hover:border-accent/30 hover:text-accent disabled:opacity-40"
-              title="导入内置提示词库"
-            >
-              <Database className={`h-3.5 w-3.5 ${isImportingSeed ? "animate-pulse" : ""}`} />
-            </button>
-          </div>
+
         </div>
 
 
@@ -1189,10 +938,11 @@ export function FavoritesStudio(props: {
                     </>
                   )}
                   <button type="button" onClick={async () => {
+                    if (isCollectedPrompt(record)) { editPromptGroup(record); return; }
                     if (isExpanded) { await flushPendingSave(record.id, draftContent); setExpandedId(null); setDraftContent(""); }
                     else { setExpandedId(record.id); setDraftContent(record.content); }
                   }} className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[11px] text-white/58 transition hover:border-accent/30 hover:text-white">
-                    {isExpanded ? "收起" : "展开"}
+                    {isCollectedPrompt(record) ? "编辑" : isExpanded ? "收起" : "展开"}
                   </button>
                 </div>
                 {isExpanded ? (
@@ -1222,17 +972,7 @@ export function FavoritesStudio(props: {
       ) : null}
       </details>
 
-      <PromptPreviewModal
-        record={previewRecord}
-        isCopied={Boolean(previewRecord && copiedId === previewRecord.id)}
-        isFavorite={Boolean(previewRecord && (previewRecord.isFavorite ?? !seedIds.has(previewRecord.id)))}
-        onClose={() => setPreviewRecord(null)}
-        onCopy={() => { if (previewRecord) void handleCopy(previewRecord); }}
-        onSave={(content) => { if (previewRecord) void savePreviewContent(previewRecord, content); }}
-        onToggleFavorite={() => { if (previewRecord) void toggleRecordFavorite(previewRecord); }}
-        onUsePrompt={() => { if (previewRecord) void usePromptInImageStudio(previewRecord); }}
-        onOptimize={() => { if (previewRecord) setOptimizationRecord(previewRecord); }}
-      />
+      {promptPreviewDialog}
       <PromptOptimizePanel
         record={optimizationRecord}
         busy={Boolean(optimizationRecord && busyId === optimizationRecord.id)}
