@@ -143,6 +143,7 @@ export interface CleanupExampleImagesMessage {
 }
 
 export type RuntimeRequestMessage =
+  | { type: "storage:merge-collection"; payload: import("../lib/collection-storage").CollectionChange }
   | TestProviderConnectionMessage
   | DetectProviderModelsMessage
   | GeneratePromptMessage

@@ -1,25 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  MouseEvent as ReactMouseEvent,
-  WheelEvent as ReactWheelEvent
-} from "react";
-import { AnimatePresence, motion, Reorder, useReducedMotion } from "framer-motion";
-import { ArrowUp, Check, ChevronLeft, ChevronRight, Pin, Plus, Search, Settings, Trash2, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowUp, Pin, Search, Settings, X } from "lucide-react";
 
+import { confirmInputOnBlankClick, confirmInputOnEnter, startInputComposition, finishInputComposition } from "../lib/enter-confirm";
 import { FavoritesStudio } from "./FavoritesStudio";
 import { ImageStudio } from "./ImageStudio";
 import { RolePromptStudio } from "./RolePromptStudio";
 import { FloatingOverlay } from "./FloatingOverlay";
 import {
-  addCustomTab,
-  cleanupInvalidTabs,
-  CORE_TABS,
-  DEFAULT_PROMPT_TABS,
-  deleteTab,
-  getCustomTabs,
-  getVisibleTabs,
-  renameCustomTab,
-  saveTabOrder,
   PROMPT_STORAGE_KEYS
 } from "../lib/prompt-library";
 import { useChromeStorage } from "../hooks/useChromeStorage";
@@ -53,7 +41,7 @@ const POPUP_SESSION_KEY = "prompt-butler-popup-ui-state";
 const OVERLAY_UI_STATE_KEY = "prompt-butler-overlay-ui-state";
 const OVERLAY_PINNED_KEY = "prompt-butler-overlay-pinned";
 const defaultOverlaySessionState: OverlaySessionState = {
-  activeTab: DEFAULT_PROMPT_TABS[0],
+  activeTab: "角色设定",
   searchQuery: "",
   assetFilter: "all",
   scrollTop: 0,
@@ -73,7 +61,7 @@ export function OverlayApp({
     typeof chrome !== "undefined" && chrome.runtime?.getURL
       ? chrome.runtime.getURL(iconAssetPath.replace(/^\//, ""))
       : iconAssetPath;
-  const [activeTab, setActiveTab] = useState<string>(DEFAULT_PROMPT_TABS[0]);
+  const [activeTab, setActiveTab] = useState<string>("角色设定");
   const [searchQuery, setSearchQuery] = useState("");
   const [assetFilter, setAssetFilter] = useState<PromptAssetFilter>("all");
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -87,51 +75,17 @@ export function OverlayApp({
     []
   );
   const { value: favorites } = favoritesStorage;
-  const [customTabs, setCustomTabs] = useState<string[]>([]);
-  const [visibleTabs, setVisibleTabs] = useState<string[]>(DEFAULT_PROMPT_TABS.slice());
-  const [isCreatingTab, setIsCreatingTab] = useState(false);
-  const [tabNameDraft, setTabNameDraft] = useState("");
-  const [editingTabName, setEditingTabName] = useState<string | null>(null);
-  const [panelErrorMessage, setPanelErrorMessage] = useState("");
   const [toast, setToast] = useState<ToastEvent | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionRestoredRef = useRef(false);
   const popupSessionRef = useRef<OverlaySessionState>(defaultOverlaySessionState);
-  const navRef = useRef<HTMLElement | null>(null);
   const contentScrollRef = useRef<HTMLDivElement | null>(null);
-  const categoryTabRefs = useRef(new Map<string, HTMLButtonElement>());
-  const dragStateRef = useRef<{
-    isDragging: boolean;
-    startX: number;
-    startScrollLeft: number;
-  }>({
-    isDragging: false,
-    startX: 0,
-    startScrollLeft: 0
-  });
-  const isReorderingRef = useRef(false);
   const persistUiState = useCallback((state: OverlaySessionState) => {
     return embedded && !appWindow
       ? sessionStorageSet(POPUP_SESSION_KEY, state)
       : storageSet(OVERLAY_UI_STATE_KEY, state);
   }, [appWindow, embedded]);
-
-  useEffect(() => {
-    void cleanupInvalidTabs().then(() => {
-      void getCustomTabs().then(setCustomTabs);
-      void getVisibleTabs().then(setVisibleTabs);
-    });
-  }, []);
-
-  useEffect(() => {
-    const refreshCategories = () => {
-      void getCustomTabs().then(setCustomTabs);
-      void getVisibleTabs().then(setVisibleTabs);
-    };
-    window.addEventListener("prompt-library-updated", refreshCategories);
-    return () => window.removeEventListener("prompt-library-updated", refreshCategories);
-  }, []);
 
   useEffect(() => {
     void migrateLegacyPromptImages().catch((error) => {
@@ -165,7 +119,7 @@ export function OverlayApp({
     void storedState.then((stored) => {
       if (cancelled) return;
       popupSessionRef.current = stored;
-      setActiveTab(stored.activeTab);
+      setActiveTab(stored.activeTab === "角色设定" || stored.activeTab === "图像生成" ? stored.activeTab : "收藏");
       setSearchQuery(stored.searchQuery);
       setAssetFilter(stored.assetFilter);
       if (stored.selectedPromptId) {
@@ -215,10 +169,6 @@ export function OverlayApp({
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
   }, []);
 
-  const libraryTabs = visibleTabs.filter((tab) => !CORE_TABS.includes(tab));
-  const activeCategoryIndex = libraryTabs.indexOf(activeTab);
-  const canSelectPreviousCategory = activeCategoryIndex > 0;
-  const canSelectNextCategory = activeCategoryIndex < libraryTabs.length - 1;
   const activeWorkspace = activeTab === "角色设定"
     ? "identity"
     : activeTab === "图像生成"
@@ -233,91 +183,6 @@ export function OverlayApp({
     [favorites]
   );
 
-  const ensureActiveCategoryVisible = useCallback((behavior: ScrollBehavior) => {
-    const nav = navRef.current;
-    const selectedTab = categoryTabRefs.current.get(activeTab);
-    if (!nav || !selectedTab) return;
-    const navRect = nav.getBoundingClientRect();
-    const tabRect = selectedTab.getBoundingClientRect();
-    const leftBoundary = navRect.left + (canSelectPreviousCategory ? 44 : 0);
-    const rightBoundary = navRect.right - (canSelectNextCategory ? 44 : 0);
-
-    if (tabRect.left < leftBoundary || tabRect.right > rightBoundary) {
-      selectedTab.scrollIntoView({ behavior, block: "nearest", inline: "nearest" });
-    }
-  }, [activeTab, canSelectPreviousCategory, canSelectNextCategory]);
-
-  useEffect(() => {
-    if (activeWorkspace !== "library") return;
-    const frame = window.requestAnimationFrame(() => {
-      ensureActiveCategoryVisible("smooth");
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeWorkspace, ensureActiveCategoryVisible]);
-
-  useEffect(() => {
-    if (activeWorkspace !== "library") return;
-    const nav = navRef.current;
-    if (!nav) return;
-
-    const resizeObserver = new ResizeObserver(() => ensureActiveCategoryVisible("auto"));
-    resizeObserver.observe(nav);
-    return () => resizeObserver.disconnect();
-  }, [activeWorkspace, ensureActiveCategoryVisible]);
-
-  const tabPromptCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const tab of libraryTabs) {
-      counts[tab] = favorites.filter(
-        (r) => r.category === tab || r.category.startsWith(`${tab}/`)
-      ).length;
-    }
-    return counts;
-  }, [favorites, libraryTabs]);
-
-  const handleCreateTab = async () => {
-    try {
-      setPanelErrorMessage("");
-      const next = await addCustomTab(tabNameDraft);
-      setCustomTabs(next);
-      setVisibleTabs(await getVisibleTabs());
-      setIsCreatingTab(false);
-      setTabNameDraft("");
-      setActiveTab(tabNameDraft.trim());
-    } catch (error) {
-      setPanelErrorMessage(error instanceof Error ? error.message : "创建失败。");
-    }
-  };
-
-  const handleRenameTab = async (oldName: string) => {
-    try {
-      setPanelErrorMessage("");
-      const next = await renameCustomTab(oldName, tabNameDraft);
-      setCustomTabs(next);
-      setVisibleTabs(await getVisibleTabs());
-      const newName = tabNameDraft.trim();
-      if (activeTab === oldName) {
-        setActiveTab(newName);
-      }
-      setEditingTabName(null);
-      setTabNameDraft("");
-    } catch (error) {
-      setPanelErrorMessage(error instanceof Error ? error.message : "重命名失败。");
-    }
-  };
-
-  const handleDeleteTab = async (name: string) => {
-    const { customTabs: nextCustom, visibleTabs: nextVisible } = await deleteTab(name);
-    setCustomTabs(nextCustom);
-    setVisibleTabs(nextVisible);
-    if (activeTab === name) {
-      setActiveTab("收藏");
-    }
-    setEditingTabName(null);
-    setTabNameDraft("");
-  };
-
   const openWorkspace = (workspace: "identity" | "library" | "image") => {
     setSearchQuery("");
     if (workspace === "identity") {
@@ -330,16 +195,7 @@ export function OverlayApp({
       return;
     }
 
-    setActiveTab((current) =>
-      current === "角色设定" || current === "图像生成" ? "收藏" : current
-    );
-  };
-
-  const getTabLabel = (tab: string) => {
-    if (tab === "角色设定") return "专家身份";
-    if (tab === "收藏") return "提示词库";
-    if (tab === "图像生成") return "图像工坊";
-    return tab;
+    setActiveTab("收藏");
   };
 
   const openOptions = () => {
@@ -348,27 +204,6 @@ export function OverlayApp({
         window.open(chrome.runtime.getURL("options.html"));
       }
     });
-  };
-
-  const startHorizontalDrag = (event: ReactMouseEvent<HTMLElement>) => {
-    if (isReorderingRef.current || !navRef.current) return;
-
-    dragStateRef.current = {
-      isDragging: true,
-      startX: event.clientX,
-      startScrollLeft: navRef.current.scrollLeft
-    };
-  };
-
-  const moveHorizontalDrag = (event: ReactMouseEvent<HTMLElement>) => {
-    if (isReorderingRef.current || !navRef.current || !dragStateRef.current.isDragging) return;
-
-    const distance = event.clientX - dragStateRef.current.startX;
-    navRef.current.scrollLeft = dragStateRef.current.startScrollLeft - distance;
-  };
-
-  const endHorizontalDrag = () => {
-    dragStateRef.current.isDragging = false;
   };
 
   const togglePinned = async () => {
@@ -383,28 +218,6 @@ export function OverlayApp({
       void storageSet(OVERLAY_PINNED_KEY, nextIsPinned);
     }
     showToast(nextIsPinned ? "工作台已置顶" : "已取消置顶");
-  };
-
-  const scrollCategories = (direction: -1 | 1) => {
-    if (activeCategoryIndex < 0) return;
-    const nextIndex = Math.min(
-      libraryTabs.length - 1,
-      Math.max(0, activeCategoryIndex + direction)
-    );
-    if (nextIndex !== activeCategoryIndex) setActiveTab(libraryTabs[nextIndex]);
-  };
-
-  const handleCategoryWheel = (event: ReactWheelEvent<HTMLElement>) => {
-    const horizontalDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
-      ? event.deltaX
-      : event.deltaY;
-    if (horizontalDelta === 0) return;
-    const nav = event.currentTarget;
-    const maxScrollLeft = Math.max(0, nav.scrollWidth - nav.clientWidth);
-    const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, nav.scrollLeft + horizontalDelta));
-    if (Math.abs(nextScrollLeft - nav.scrollLeft) < 1) return;
-    nav.scrollLeft = nextScrollLeft;
-    event.preventDefault();
   };
 
   const handleContentScroll = (scrollTop: number) => {
@@ -446,6 +259,10 @@ export function OverlayApp({
 
   const panel = (
     <motion.section
+      onKeyDown={confirmInputOnEnter}
+      onPointerDownCapture={confirmInputOnBlankClick}
+      onCompositionStartCapture={startInputComposition}
+      onCompositionEndCapture={finishInputComposition}
       initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: shouldReduceMotion ? 0.08 : MOTION.pageMs / 1000, ease: MOTION.easeOut }}
@@ -500,7 +317,8 @@ export function OverlayApp({
           </div>
         </header>
 
-        <div
+        <motion.div
+          layoutScroll
           ref={contentScrollRef}
           className="aura-content fluxora-content flex-1 overflow-y-auto"
           onScroll={(event) => handleContentScroll(event.currentTarget.scrollTop)}
@@ -598,241 +416,6 @@ export function OverlayApp({
             </div>
           </div>
 
-          <div className="library-filter-label">分类</div>
-          <div className="library-category-shell mt-4">
-            <nav
-              ref={navRef}
-              className={[
-                "library-category-bar no-scrollbar",
-                canSelectPreviousCategory ? "library-category-bar-has-left" : "",
-                canSelectNextCategory ? "library-category-bar-has-right" : ""
-              ].join(" ")}
-              style={{ touchAction: "pan-x", overscrollBehaviorX: "contain" }}
-              onWheel={handleCategoryWheel}
-              onMouseDown={startHorizontalDrag}
-              onMouseMove={moveHorizontalDrag}
-              onMouseUp={endHorizontalDrag}
-              onMouseLeave={endHorizontalDrag}
-            >
-          <Reorder.Group
-            axis="x"
-            values={libraryTabs}
-            onReorder={async (newOrder: string[]) => {
-              setVisibleTabs(newOrder);
-              await saveTabOrder(newOrder);
-            }}
-            className="library-category-list flex w-max gap-2"
-          >
-            {libraryTabs.map((tab) => {
-              const isCustom = !CORE_TABS.includes(tab);
-              const isEditing = editingTabName === tab;
-
-              if (isEditing) {
-                return (
-                  <Reorder.Item
-                    key={tab}
-                    value={tab}
-                    as="span"
-                    onDragStart={() => { isReorderingRef.current = true; }}
-                    onDragEnd={() => { isReorderingRef.current = false; }}
-                    className="library-category-item inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-accent/45 bg-black/25 px-3 py-1.5"
-                  >
-                    <input
-                      value={tabNameDraft}
-                      onChange={(event) => {
-                        setTabNameDraft(event.target.value);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          void handleRenameTab(tab);
-                        }
-                        if (event.key === "Escape") {
-                          setEditingTabName(null);
-                          setTabNameDraft("");
-                        }
-                      }}
-                      className="w-20 bg-transparent text-xs text-white outline-none"
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void handleRenameTab(tab);
-                      }}
-                      className="rounded p-0.5 text-white/55 transition hover:text-accent"
-                    >
-                      <Check className="h-3 w-3" />
-                    </button>
-                    {isCustom ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleDeleteTab(tab);
-                        }}
-                        className="rounded p-0.5 text-white/55 transition hover:text-rose-300"
-                        title="删除分类"
-                        aria-label={`删除分类 ${tab}`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingTabName(null);
-                        setTabNameDraft("");
-                      }}
-                      className="rounded p-0.5 text-white/55 transition hover:text-rose-300"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Reorder.Item>
-                );
-              }
-
-              return (
-                <Reorder.Item
-                  key={tab}
-                  value={tab}
-                  as="span"
-                  className="library-category-item inline-flex items-center gap-1"
-                  whileDrag={{
-                    scale: 1.02,
-                    zIndex: 50,
-                    boxShadow: "var(--shadow-floating)"
-                  }}
-                  transition={{ duration: shouldReduceMotion ? 0 : MOTION.fastMs / 1000, ease: MOTION.easeOut }}
-                  onDragStart={() => { isReorderingRef.current = true; }}
-                  onDragEnd={() => { isReorderingRef.current = false; }}
-                >
-                  <button
-                    ref={(node) => {
-                      if (node) categoryTabRefs.current.set(tab, node);
-                      else categoryTabRefs.current.delete(tab);
-                    }}
-                    type="button"
-                    onClick={() => {
-                      setAssetFilter("all");
-                      setActiveTab(tab);
-                    }}
-                    onDoubleClick={
-                      isCustom
-                        ? () => {
-                            setEditingTabName(tab);
-                            setTabNameDraft(tab);
-                          }
-                        : undefined
-                    }
-                    title={isCustom ? "双击重命名" : undefined}
-                    className={[
-                      "library-category-tab inline-flex items-center gap-1.5 whitespace-nowrap",
-                      activeTab === tab
-                        ? "library-category-tab-active"
-                        : ""
-                    ].join(" ")}
-                  >
-                    {getTabLabel(tab)}
-                    {tabPromptCounts[tab] !== undefined ? (
-                      <span className={[
-                        "rounded-full px-1.5 py-0.5 text-[10px] leading-none",
-                        activeTab === tab
-                          ? "bg-accent/25 text-accent"
-                          : "bg-white/10 text-white/45"
-                      ].join(" ")}>
-                        {tabPromptCounts[tab]}
-                      </span>
-                    ) : null}
-                  </button>
-                </Reorder.Item>
-              );
-            })}
-
-            {isCreatingTab ? (
-              <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-accent/45 bg-black/25 px-3 py-1.5">
-                <input
-                  value={tabNameDraft}
-                  onChange={(event) => {
-                    setTabNameDraft(event.target.value);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      void handleCreateTab();
-                    }
-                    if (event.key === "Escape") {
-                      setIsCreatingTab(false);
-                      setTabNameDraft("");
-                      setPanelErrorMessage("");
-                    }
-                  }}
-                  placeholder="预设名称"
-                  className="w-20 bg-transparent text-xs text-white outline-none placeholder:text-white/25"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleCreateTab();
-                  }}
-                  className="rounded p-0.5 text-white/55 transition hover:text-accent"
-                >
-                  <Check className="h-3 w-3" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCreatingTab(false);
-                    setTabNameDraft("");
-                    setPanelErrorMessage("");
-                  }}
-                  className="rounded p-0.5 text-white/55 transition hover:text-rose-300"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCreatingTab(true);
-                  setTabNameDraft("");
-                  setPanelErrorMessage("");
-                }}
-                className="whitespace-nowrap rounded-full border border-dashed border-white/15 bg-transparent px-3 py-2 text-sm text-white/45 transition hover:border-accent/40 hover:text-accent"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            )}
-            </Reorder.Group>
-            </nav>
-            {canSelectPreviousCategory ? (
-              <div className="library-category-edge library-category-edge-left">
-                <button
-                  type="button"
-                  aria-label="查看左侧分类"
-                  onClick={() => scrollCategories(-1)}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-              </div>
-            ) : null}
-            {canSelectNextCategory ? (
-              <div className="library-category-edge library-category-edge-right">
-                <button
-                  type="button"
-                  aria-label="查看更多分类"
-                  onClick={() => scrollCategories(1)}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            ) : null}
-          </div>
-            </div>
-          ) : null}
-
-          {panelErrorMessage ? (
-            <div className="mt-3 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs text-rose-200">
-              {panelErrorMessage}
             </div>
           ) : null}
 
@@ -849,7 +432,7 @@ export function OverlayApp({
               <FavoritesStudio
                 settings={settings}
                 isServiceReady={isServiceReady}
-                activeCategory={activeTab === "收藏" ? "收藏" : activeTab}
+                activeCategory="收藏"
                 searchQuery={searchQuery}
                 assetFilter={assetFilter}
                 openPromptRequest={quickPromptRequest}
@@ -874,7 +457,7 @@ export function OverlayApp({
               <FavoritesStudio
                 settings={settings}
                 isServiceReady={isServiceReady}
-                activeCategory={activeTab}
+                activeCategory="收藏"
                 assetFilter={assetFilter}
                 openPromptRequest={quickPromptRequest}
                 onPreviewChange={handlePreviewChange}
@@ -892,7 +475,7 @@ export function OverlayApp({
               <ArrowUp className="h-4 w-4" />返回顶部
             </button>
           ) : null}
-        </div>
+        </motion.div>
 
         <AnimatePresence>
           {toast ? (

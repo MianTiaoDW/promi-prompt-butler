@@ -157,7 +157,7 @@ async function runLegacyPromptImageMigration() {
     migrated.push({ ...record, linkedImages: [], exampleImageIds: ids, imageStorageVersion: 2 });
     changed = true;
   }
-  if (changed) await storageSet(PROMPT_STORAGE_KEYS.favorites, migrated);
+  if (changed) await storageSet(PROMPT_STORAGE_KEYS.favorites, migrated, records);
   return changed;
 }
 

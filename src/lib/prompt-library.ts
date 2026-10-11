@@ -118,14 +118,14 @@ export async function renameCustomTab(oldName: string, newName: string) {
       ? { ...r, category: r.category.replace(oldName, trimmedName), updatedAt: new Date().toISOString() }
       : r
   );
-  await storageSet(PROMPT_STORAGE_KEYS.favorites, nextFavorites);
+  await storageSet(PROMPT_STORAGE_KEYS.favorites, nextFavorites, favorites);
 
   // Update folders referencing the old scope
   const folders = await storageGet<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []);
   const nextFolders = folders.map((f) =>
     f.scope === oldName ? { ...f, scope: trimmedName } : f
   );
-  await storageSet(PROMPT_STORAGE_KEYS.folders, nextFolders);
+  await storageSet(PROMPT_STORAGE_KEYS.folders, nextFolders, folders);
 
   return next;
 }
@@ -141,11 +141,11 @@ export async function deleteTab(name: string): Promise<{ customTabs: string[]; v
     record.category === name || record.category.startsWith(`${name}/`)
       ? { ...record, category: `收藏${record.category.slice(name.length)}` }
       : record
-  ));
+  ), records);
   const folders = await storageGet<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []);
   await storageSet(PROMPT_STORAGE_KEYS.folders, folders.map((folder) =>
     folder.scope === name ? { ...folder, scope: "收藏" } : folder
-  ));
+  ), folders);
 
   // Remove from custom tabs if applicable
   let customTabs = await getCustomTabs();
@@ -215,9 +215,9 @@ export async function savePromptToFavorites(input: {
     content: input.content,
     category: input.category?.trim() || "收藏",
     tags: input.tags?.length ? input.tags : recommendPromptTags(input.content),
-    order: 0,
+    order: existing.reduce((max, item) => Math.max(max, item.order ?? -1), -1) + 1,
     source: input.source ?? "creator",
-    isFavorite: input.isFavorite,
+    isFavorite: input.isFavorite ?? false,
     isFrequent: input.isFrequent,
     versions: [],
     usedCount: 0,
@@ -230,7 +230,7 @@ export async function savePromptToFavorites(input: {
     contentVariants: input.contentVariants
   };
 
-  await storageSet(PROMPT_STORAGE_KEYS.favorites, [record, ...existing]);
+  await storageSet(PROMPT_STORAGE_KEYS.favorites, [record, ...existing], existing);
 
   return record;
 }
@@ -243,7 +243,8 @@ export async function updateFavoritePrompt(
     PROMPT_STORAGE_KEYS.favorites,
     []
   );
-  const changesAssetContent = Object.keys(patch).some((key) => key !== "lastUsedAt");
+  const usageKeys = new Set(["lastUsedAt", "lastUsed", "usedCount", "usageCount"]);
+  const changesAssetContent = Object.keys(patch).some((key) => !usageKeys.has(key));
   const nextRecords = existing.map((record) =>
     record.id === promptId
       ? {
@@ -254,9 +255,9 @@ export async function updateFavoritePrompt(
       : record
   );
 
-  await storageSet(PROMPT_STORAGE_KEYS.favorites, nextRecords);
+  const savedRecords = await storageSet(PROMPT_STORAGE_KEYS.favorites, nextRecords, existing);
 
-  return nextRecords.find((record) => record.id === promptId) ?? null;
+  return savedRecords.find((record) => record.id === promptId) ?? null;
 }
 
 export async function createPromptFolder(name: string, scope: string) {
@@ -272,7 +273,7 @@ export async function createPromptFolder(name: string, scope: string) {
     throw new Error("同名文件夹已存在。");
   }
 
-  const scopeFolders = existing.filter((folder) => folder.scope === scope);
+  const scopeFolders = existing;
   const nextOrder = scopeFolders.length === 0 ? 0 : Math.max(...scopeFolders.map((folder) => folder.order ?? 0)) + 1;
   const folder: PromptFolder = {
     id: `folder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -282,7 +283,7 @@ export async function createPromptFolder(name: string, scope: string) {
     order: nextOrder
   };
 
-  await storageSet(PROMPT_STORAGE_KEYS.folders, [...existing, folder]);
+  await storageSet(PROMPT_STORAGE_KEYS.folders, [...existing, folder], existing);
   return folder;
 }
 
@@ -319,8 +320,13 @@ export async function renamePromptFolder(folderId: string, name: string) {
       : folder
   );
 
-  await storageSet(PROMPT_STORAGE_KEYS.folders, nextFolders);
-  return nextFolders.find((folder) => folder.id === folderId) ?? null;
+  const records = await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
+  const oldCategory = `${scope}/${currentFolder.name}`;
+  await storageSet(PROMPT_STORAGE_KEYS.favorites, records.map((record) =>
+    record.category === oldCategory ? { ...record, category: `${scope}/${trimmedName}` } : record
+  ), records);
+  const savedFolders = await storageSet(PROMPT_STORAGE_KEYS.folders, nextFolders, existing);
+  return savedFolders.find((folder) => folder.id === folderId) ?? null;
 }
 
 export async function deletePromptFolder(folderId: string) {
@@ -331,41 +337,27 @@ export async function deletePromptFolder(folderId: string) {
     return false;
   }
 
-  const nextFolders = existing
-    .filter((folder) => folder.id !== folderId)
-    .map((folder) => {
-      if (folder.scope !== targetFolder.scope) {
-        return folder;
-      }
-
-      return {
-        ...folder,
-        order: folder.order > targetFolder.order ? folder.order - 1 : folder.order
-      };
-    });
+  const nextFolders = existing.filter((folder) => folder.id !== folderId);
 
   const favorites = await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
   const folderCategory = `${targetFolder.scope}/${targetFolder.name}`;
   const nextFavorites = favorites.map((record) =>
-    record.category === folderCategory
-      ? {
-          ...record,
-          category: targetFolder.scope,
-          updatedAt: new Date().toISOString()
-        }
-      : record
+    ({ ...record,
+      category: record.category === folderCategory ? targetFolder.scope : record.category,
+      folderIds: record.folderIds?.filter((id) => id !== folderId)
+    })
   );
 
-  await storageSet(PROMPT_STORAGE_KEYS.folders, nextFolders);
-  await storageSet(PROMPT_STORAGE_KEYS.favorites, nextFavorites);
+  await storageSet(PROMPT_STORAGE_KEYS.folders, nextFolders, existing);
+  await storageSet(PROMPT_STORAGE_KEYS.favorites, nextFavorites, favorites);
   return true;
 }
 
-export async function reorderPromptFolders(scope: string, orderedIds: string[]) {
+export async function reorderPromptFolders(scope: string | null, orderedIds: string[]) {
   const existing = await storageGet<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []);
   const orderMap = new Map(orderedIds.map((id, index) => [id, index]));
   const nextFolders = existing.map((folder) => {
-    if (folder.scope !== scope || !orderMap.has(folder.id)) {
+    if ((scope !== null && folder.scope !== scope) || !orderMap.has(folder.id)) {
       return folder;
     }
 
@@ -375,8 +367,8 @@ export async function reorderPromptFolders(scope: string, orderedIds: string[]) 
     };
   });
 
-  await storageSet(PROMPT_STORAGE_KEYS.folders, nextFolders);
-  return nextFolders.filter((folder) => folder.scope === scope);
+  const savedFolders = await storageSet(PROMPT_STORAGE_KEYS.folders, nextFolders, existing);
+  return scope === null ? savedFolders : savedFolders.filter((folder) => folder.scope === scope);
 }
 
 export function searchPromptRecords(records: SavedPromptRecord[], searchQuery: string) {
@@ -410,8 +402,8 @@ export async function removeRetiredSeedPrompts() {
       record.category === `${folder.scope || "收藏"}/${folder.name}`
     )
   );
-  if (remaining.length !== records.length) await storageSet(PROMPT_STORAGE_KEYS.favorites, remaining);
-  if (remainingFolders.length !== folders.length) await storageSet(PROMPT_STORAGE_KEYS.folders, remainingFolders);
+  if (remaining.length !== records.length) await storageSet(PROMPT_STORAGE_KEYS.favorites, remaining, records);
+  if (remainingFolders.length !== folders.length) await storageSet(PROMPT_STORAGE_KEYS.folders, remainingFolders, folders);
 }
 
 /** 清理之前版本误创建的错误标签 */
@@ -440,7 +432,7 @@ async function reorderFavorites(scope: string, orderedIds: string[]) {
     if (record.category !== scope || !orderMap.has(record.id)) return record;
     return { ...record, order: orderMap.get(record.id) ?? record.order };
   });
-  await storageSet(PROMPT_STORAGE_KEYS.favorites, nextRecords);
+  await storageSet(PROMPT_STORAGE_KEYS.favorites, nextRecords, existing);
   return nextRecords;
 }
 

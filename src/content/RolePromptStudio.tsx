@@ -8,14 +8,13 @@ import {
   ImagePlus,
   LoaderCircle,
   Sparkles,
-  Wand2,
   X
 } from "lucide-react";
 
 import { useChromeStorage } from "../hooks/useChromeStorage";
 import { saveImageWorkspace } from "../lib/image-library";
 import { getPromptSkillProfile, PROMPT_SKILL_PROFILES } from "../lib/prompt-skills";
-import { ensureDefaultRolePreset, PROMPT_STORAGE_KEYS, savePromptToFavorites, updateFavoritePrompt } from "../lib/prompt-library";
+import { ensureDefaultRolePreset, PROMPT_STORAGE_KEYS, savePromptToFavorites } from "../lib/prompt-library";
 import { storageGet } from "../lib/storage";
 import type { SavedPromptRecord } from "../types/prompt";
 import { failPromptTask, getPromptTask, startPromptTask, subscribePromptTask } from "../lib/task-broker";
@@ -90,7 +89,6 @@ export function RolePromptStudio(props: {
   const [panelMessage, setPanelMessage] = useState("填写角色设定和需求后点击生成");
   const [copiedFormat, setCopiedFormat] = useState<PromptOutputFormat | null>(null);
   const [pendingSave, setPendingSave] = useState<{ format: PromptOutputFormat; text: string } | null>(null);
-  const [pendingFrequent, setPendingFrequent] = useState(false);
   const [savedRecords, setSavedRecords] = useState<Partial<Record<PromptOutputFormat, SavedPromptRecord>>>({});
   const [editingFormat, setEditingFormat] = useState<PromptOutputFormat | null>(null);
   const [editingText, setEditingText] = useState("");
@@ -195,7 +193,6 @@ export function RolePromptStudio(props: {
     setPanelMessage("正在通过 Background 调用模型扩写角色提示词...");
     setSavedRecords({});
     setPendingSave(null);
-    setPendingFrequent(false);
     await startPromptTask();
 
     try {
@@ -276,12 +273,11 @@ export function RolePromptStudio(props: {
     }
     setGenerationResult({ ...generationResult, output: updatedOutput });
     setEditingFormat(null);
-    showToast("已保存修改~");
+    showToast("已确认修改");
   };
 
-  const openSaveModal = (format: PromptOutputFormat, text: string, frequent = false) => {
+  const openSaveModal = (format: PromptOutputFormat, text: string) => {
     setPendingSave({ format, text });
-    setPendingFrequent(frequent);
   };
 
   const confirmSavePrompt = async (values: PromptSaveValues) => {
@@ -292,11 +288,10 @@ export function RolePromptStudio(props: {
       format: pendingSave.format,
       content: pendingSave.text,
       title: values.title,
-      category: `收藏/${values.category}`,
+      category: "收藏",
       tags: values.tags,
       source: "ai-generated",
       isFavorite: true,
-      isFrequent: pendingFrequent,
       contentVariants: {
         cnPrompt: generationResult.output.cnPrompt,
         enPrompt: generationResult.output.enPrompt,
@@ -305,19 +300,7 @@ export function RolePromptStudio(props: {
     });
     setSavedRecords((current) => ({ ...current, [pendingSave.format]: record }));
     setPendingSave(null);
-    setPendingFrequent(false);
     showToast("已保存到提示词库");
-  };
-
-  const toggleFrequent = async (format: PromptOutputFormat, text: string) => {
-    const record = savedRecords[format];
-    if (!record) {
-      openSaveModal(format, text, true);
-      return;
-    }
-    const updated = await updateFavoritePrompt(record.id, { isFrequent: !record.isFrequent });
-    if (updated) setSavedRecords((current) => ({ ...current, [format]: updated }));
-    showToast(record.isFrequent ? "已移出常用" : "已加入常用");
   };
 
   const sendToImageStudio = async (format: PromptOutputFormat, text: string) => {
@@ -372,7 +355,6 @@ export function RolePromptStudio(props: {
             <div className="section-hint">写下主体、场景、风格或想表达的氛围。</div>
           </div>
           <div className="creator-input-meta">
-            <span>{workspaceState.userRequirement.length} 字</span>
             {workspaceState.userRequirement ? (
               <button
                 type="button"
@@ -570,31 +552,29 @@ export function RolePromptStudio(props: {
                     </button>
 
                     <div className="creator-output-actions">
-                      <PromptActionBar
+                      {editingFormat !== item.format ? <PromptActionBar
                         copied={copiedFormat === item.format}
                         saved={Boolean(savedRecords[item.format])}
-                        frequent={Boolean(savedRecords[item.format]?.isFrequent)}
                         onCopy={() => void handleCopy(item.format, item.text)}
                         onSave={() => openSaveModal(item.format, item.text)}
-                        onFrequent={() => void toggleFrequent(item.format, item.text)}
                         onSendToImage={() => void sendToImageStudio(item.format, item.text)}
-                      />
-                      {isOutputExpanded ? editingFormat === item.format ? (
-                        <><button type="button" onClick={() => saveEditing(item.format)}><Check className="h-3.5 w-3.5" />保存修改</button><button type="button" onClick={() => setEditingFormat(null)}>取消</button></>
-                      ) : (
-                        <button type="button" onClick={() => startEditing(item.format, item.text)} title="重新编辑"><Wand2 className="h-3.5 w-3.5" /></button>
-                      ) : null}
+                      /> : null}
                     </div>
                   </div>
 
                   {isOutputExpanded ? editingFormat === item.format ? (
+                    <div data-enter-confirm className="creator-inline-edit">
                     <textarea
+                      autoFocus
+                      aria-label={`编辑${item.title}`}
                       value={editingText}
                       onChange={(event) => setEditingText(event.target.value)}
                       className={`form-field creator-output-editor ${item.format === "structuredPrompt" ? "is-structured" : ""}`}
                     />
+                    <div className="creator-inline-edit-actions"><button type="button" className="ghost-button px-3 py-2 text-sm" onClick={() => setEditingFormat(null)}>取消</button><button type="button" data-enter-submit className="gradient-button px-3 py-2 text-sm" onClick={() => saveEditing(item.format)}><Check className="h-3.5 w-3.5" />确认</button></div>
+                    </div>
                   ) : (
-                    <pre className={`creator-output-content ${item.format === "structuredPrompt" ? "is-structured" : ""}`}>{item.text}</pre>
+                    <pre role="button" tabIndex={0} aria-label={`编辑${item.title}`} title="点击编辑提示词" onClick={() => startEditing(item.format, item.text)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); startEditing(item.format, item.text); } }} className={`creator-output-content is-editable ${item.format === "structuredPrompt" ? "is-structured" : ""}`}>{item.text}</pre>
                   ) : null}
                 </article>
               );
@@ -606,7 +586,7 @@ export function RolePromptStudio(props: {
       <PromptSaveModal
         open={Boolean(pendingSave)}
         defaultTitle={workspaceState.userRequirement.slice(0, 28) || pendingSave?.text.slice(0, 28) || "未命名提示词"}
-        onClose={() => { setPendingSave(null); setPendingFrequent(false); }}
+        onClose={() => setPendingSave(null)}
         onSave={(values) => void confirmSavePrompt(values)}
       />
     </div>

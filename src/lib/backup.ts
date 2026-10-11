@@ -102,6 +102,7 @@ export async function readPromptBackup(file: File): Promise<{ backup: PromptBack
   for (const record of backup.favorites) {
     if (!record || typeof record.id !== "string" || typeof record.title !== "string" || typeof record.content !== "string" || typeof record.category !== "string" || ids.has(record.id)) throw new Error("提示词记录格式不正确或 ID 重复。");
     ids.add(record.id);
+    if (record.folderIds !== undefined && (!Array.isArray(record.folderIds) || record.folderIds.some((id) => typeof id !== "string"))) throw new Error("提示词的收藏夹记录格式不正确。");
     if (record.group && (!Array.isArray(record.group.steps) || !record.group.steps.length || record.group.steps.some((step) => typeof step.content !== "string" || typeof step.name !== "string") || typeof record.group.notes !== "string")) throw new Error("提示词组格式不正确。");
     const paths = backup.imageFiles?.[record.id] ?? [];
     if (!Array.isArray(paths) || paths.length > MAX_EXAMPLE_IMAGES) throw new Error("每个提示词最多支持 3 张示例图。");
@@ -119,7 +120,7 @@ export async function importPromptsFromFile(file: File) {
     storageGet<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []), getCustomTabs()
   ]);
   const existingIds = new Set(existing.map((record) => record.id));
-  const newRecords = backup.favorites.filter((record) => !existingIds.has(record.id)).map((record) => ({ ...record, tags: record.tags ?? [], linkedImages: [], exampleImageIds: [] as string[], imageStorageVersion: 2 as const }));
+  const newRecords = backup.favorites.filter((record) => !existingIds.has(record.id)).map((record) => ({ ...record, isFavorite: record.isFavorite ?? false, tags: record.tags ?? [], linkedImages: [], exampleImageIds: [] as string[], imageStorageVersion: 2 as const }));
   const savedImages: string[] = [];
   try {
     for (const record of newRecords) {
@@ -139,8 +140,8 @@ export async function importPromptsFromFile(file: File) {
   const categories = newRecords.map((record) => record.category.split("/")[0]);
   const importedTabs = [...backup.customTabs, ...categories].filter((tab) => !CORE_TABS.includes(tab) && !DEFAULT_PROMPT_TABS.includes(tab as typeof DEFAULT_PROMPT_TABS[number]));
   const tabs = [...new Set([...existingTabs, ...importedTabs])];
-  await storageSet(PROMPT_STORAGE_KEYS.favorites, [...newRecords, ...existing]);
-  await storageSet(PROMPT_STORAGE_KEYS.folders, [...newFolders, ...existingFolders]);
+  await storageSet(PROMPT_STORAGE_KEYS.favorites, [...newRecords, ...existing], existing);
+  await storageSet(PROMPT_STORAGE_KEYS.folders, [...newFolders, ...existingFolders], existingFolders);
   await storageSet(CUSTOM_TABS_KEY, tabs);
   return { favorites: newRecords.length, folders: newFolders.length, images: newRecords.reduce((count, record) => count + record.exampleImageIds.length, 0) };
 }

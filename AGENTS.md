@@ -4,7 +4,7 @@
 
 1. 先阅读 `docs/CODEX_HANDOFF.md`；它记录当前分支、已确认决策、未完成事项和跨设备接续命令。
 2. 执行 `git status --short --branch` 和 `git log -5 --oneline --decorate`，以最新远程状态为准，不得用旧提交覆盖当前正式界面。
-3. 2026-10-10 已将最新正式插件同步到 `main`；`codex/optical-fidelity-lab` 本次同步时与它一致。跨设备可从最新 `main` 接续。
+3. 2026-10-12 已将最新正式插件同步到 `main`；`codex/optical-fidelity-lab` 本次同步时与它一致。跨设备可从最新 `main` 接续。
 
 ## 产品与技术
 

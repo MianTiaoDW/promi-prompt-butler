@@ -1,20 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { createPortal } from "react-dom";
 import {
   ArrowLeft,
-  ArrowUp,
-  ArrowDown,
   Check,
-  Copy,
   Download,
   Upload,
   LoaderCircle,
   PencilLine,
-  Pin,
   Plus,
-  Sparkles,
   Trash2,
-  X
+  X,
+  GripVertical
 } from "lucide-react";
 
 import { useChromeStorage } from "../hooks/useChromeStorage";
@@ -22,9 +19,6 @@ import { saveImageWorkspace } from "../lib/image-library";
 import {
   createPromptFolder,
   deletePromptFolder,
-  moveFavoriteUp,
-  moveFavoriteDown,
-  pinFavoriteToTop,
   PROMPT_STORAGE_KEYS,
   recommendPromptTags,
   renamePromptFolder,
@@ -43,18 +37,11 @@ import type {
 import type { PromptFolder } from "../types/prompt";
 import type { ExtensionSettings } from "../types/settings";
 import { formatPromptGroup, getPromptGroup, isCollectedPrompt } from "../lib/prompt-group";
+import { belongsToFolder, collectPromptToFolder, moveOrderedId, reorderPromptRecords, sortPromptRecords } from "../lib/prompt-organization";
+import { PromptFolderPicker } from "./PromptFolderPicker";
 import { PromptCard } from "./PromptCard";
 import { PromptPreviewModal } from "./PromptPreviewModal";
 import { PromptOptimizePanel } from "./PromptOptimizePanel";
-
-function formatTimestamp(timestamp: string) {
-  return new Date(timestamp).toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
 
 export function FavoritesStudio(props: {
   settings: ExtensionSettings;
@@ -66,6 +53,7 @@ export function FavoritesStudio(props: {
   openPromptRequest?: { id: string; token: number } | null;
   onPreviewChange?: (promptId: string | null) => void;
 }) {
+  const reduceMotion = useReducedMotion();
   const { settings, isServiceReady, activeCategory = "收藏", searchQuery = "", onOpenImageStudio, assetFilter = "all", openPromptRequest, onPreviewChange } = props;
   const [isBackupBusy, setIsBackupBusy] = useState(false);
   const libraryRef = useRef<HTMLDivElement | null>(null);
@@ -74,10 +62,6 @@ export function FavoritesStudio(props: {
     []
   );
   const foldersStorage = useChromeStorage<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [draftContent, setDraftContent] = useState("");
-  const [autoSavedId, setAutoSavedId] = useState<string | null>(null);
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [panelMessage, setPanelMessage] = useState("");
@@ -97,54 +81,55 @@ export function FavoritesStudio(props: {
     setPromptStepsDraft([{ name: "", content: "" }]);
   };
   const [promptTitleDraft, setPromptTitleDraft] = useState("");
-  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
-  const [titleDraft, setTitleDraft] = useState("");
   const [previewRecord, setPreviewRecord] = useState<SavedPromptRecord | null>(null);
   const [optimizationRecord, setOptimizationRecord] = useState<SavedPromptRecord | null>(null);
 
-  const { value: favorites, setValue: setFavorites, isLoading } = favoritesStorage;
+  const { value: favorites, setValue: setFavorites } = favoritesStorage;
   const { value: folders, setValue: setFolders } = foldersStorage;
-  const scopedFolders = useMemo(
-    () =>
-      folders
-        .filter((folder) => assetFilter === "folders" || activeCategory === "收藏" ? true : (folder.scope || "收藏") === activeCategory)
-        .sort((left, right) => (left.order ?? 0) - (right.order ?? 0)),
-    [activeCategory, assetFilter, folders]
-  );
+  const scopedFolders = useMemo(() => [...folders].sort((left, right) => (left.order ?? 0) - (right.order ?? 0)), [folders]);
   const activeFolder = scopedFolders.find((folder) => folder.id === selectedFolderId) ?? null;
-  const scopedCategoryName = activeFolder ? `${activeFolder.scope || "收藏"}/${activeFolder.name}` : activeCategory;
-  const categoryPromptCount = useMemo(
-    () =>
-      favorites.filter(
-        (record) =>
-          record.category === activeCategory || record.category.startsWith(`${activeCategory}/`)
-      ).length,
-    [activeCategory, favorites]
-  );
-
-  const filteredFavorites = searchPromptRecords(
-    favorites.filter((record) => record.category === scopedCategoryName),
+  const sortedFavorites = sortPromptRecords(searchPromptRecords(favorites.filter((record) => activeFolder && belongsToFolder(record, activeFolder)), searchQuery));
+  const categoryAssetRecords = useMemo(() => sortPromptRecords(searchPromptRecords(
+    assetFilter === "favorite" ? favorites.filter((record) => record.isFavorite ?? false) : favorites,
     searchQuery
-  );
+  )), [assetFilter, favorites, searchQuery]);
+  const [folderPickerRecord, setFolderPickerRecord] = useState<SavedPromptRecord | null>(null);
+  const [draggingPromptId, setDraggingPromptId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const sortingRef = useRef(false);
+  const droppingRef = useRef(false);
+  const dragOrderRef = useRef<string[]>([]);
+  const finishDrag = () => {
+    if (droppingRef.current) return;
+    setDraggingPromptId(null);
+    setDraggingFolderId(null);
+    setDropTargetId(null);
+  };
+  const commitDrop = async (save: () => Promise<void>) => {
+    droppingRef.current = true;
+    try { await save(); }
+    finally { droppingRef.current = false; finishDrag(); }
+  };
+  const previewOrder = <T extends { id: string },>(records: T[], sourceId: string | null) => {
+    if (!sourceId || !dropTargetId) return records;
+    const byId = new Map(records.map((record) => [record.id, record]));
+    const originalIds = dragOrderRef.current.length ? dragOrderRef.current : records.map((record) => record.id);
+    const previewIds = moveOrderedId(originalIds, sourceId, dropTargetId);
+    return [...previewIds.filter((id) => byId.has(id)).map((id) => byId.get(id)!), ...records.filter((record) => !originalIds.includes(record.id))];
+  };
 
-  const sortedFavorites = [...filteredFavorites].sort((a, b) => {
-    const orderDiff = (a.order ?? 0) - (b.order ?? 0);
-    if (orderDiff !== 0) return orderDiff;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
-  const categoryAssetRecords = useMemo(() => {
-    const categoryRecords = activeCategory === "收藏"
-      ? favorites
-      : favorites.filter((record) => record.category === activeCategory || record.category.startsWith(`${activeCategory}/`));
-    const filteredRecords = assetFilter === "favorite"
-      ? categoryRecords.filter((record) => record.isFavorite ?? true)
-      : categoryRecords;
-    return searchPromptRecords(filteredRecords, searchQuery).sort(
-      (left, right) =>
-        new Date(right.updatedAt ?? right.createdAt).getTime() -
-        new Date(left.updatedAt ?? left.createdAt).getTime()
-    );
-  }, [activeCategory, assetFilter, favorites, searchQuery]);
+  useEffect(() => { setSelectedFolderId(null); setFolderPickerRecord(null); }, [assetFilter]);
+
+  const movePrompt = async (sourceId: string, targetId: string, records: SavedPromptRecord[]) => {
+    if (sourceId === targetId || sortingRef.current) return;
+    sortingRef.current = true;
+    try {
+      const next = await reorderPromptRecords(moveOrderedId(records.map((record) => record.id), sourceId, targetId));
+      await setFavorites(next);
+      showToast("提示词顺序已保存");
+    } catch { showToast("保存顺序失败，请重试", "error"); }
+    finally { sortingRef.current = false; }
+  };
 
   useEffect(() => {
     if (!copiedId) {
@@ -157,9 +142,6 @@ export function FavoritesStudio(props: {
 
     return () => window.clearTimeout(timer);
   }, [copiedId]);
-
-  useEffect(() => {
-  }, [scopedCategoryName]);
 
   const handleCopy = async (record: SavedPromptRecord) => {
     try {
@@ -201,7 +183,7 @@ export function FavoritesStudio(props: {
   }, [onPreviewChange, previewRecord?.id]);
 
   const toggleRecordFavorite = async (record: SavedPromptRecord) => {
-    const currentFavoriteState = record.isFavorite ?? true;
+    const currentFavoriteState = record.isFavorite ?? false;
     const updated = await updateFavoritePrompt(record.id, { isFavorite: !currentFavoriteState });
     if (updated) {
       await setFavorites((current) =>
@@ -248,54 +230,14 @@ export function FavoritesStudio(props: {
     showToast("提示词已更新");
   };
 
-  const flushPendingSave = async (recordId: string, content: string) => {
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
-    }
-    if (!content.trim()) return;
-    const tags = recommendPromptTags(content);
-    const updated = await updateFavoritePrompt(recordId, { content, tags });
-    if (updated) {
-      await setFavorites((current) =>
-        current.map((item) => (item.id === recordId ? updated : item))
-      );
-    }
-  };
-
-  const debouncedSave = (recordId: string, content: string) => {
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-    autoSaveTimerRef.current = setTimeout(async () => {
-      const tags = recommendPromptTags(content);
-      const updated = await updateFavoritePrompt(recordId, { content, tags });
-      if (updated) {
-        await setFavorites((current) =>
-          current.map((item) => (item.id === recordId ? updated : item))
-        );
-        setAutoSavedId(recordId);
-        setTimeout(() => setAutoSavedId(null), 2000);
-      }
-      autoSaveTimerRef.current = null;
-    }, 1500);
-  };
-
-  const handleSortAction = async (recordId: string, action: "pin" | "up" | "down") => {
-    let updated: SavedPromptRecord[];
-    if (action === "pin") updated = await pinFavoriteToTop(recordId, scopedCategoryName);
-    else if (action === "up") updated = await moveFavoriteUp(recordId, scopedCategoryName);
-    else updated = await moveFavoriteDown(recordId, scopedCategoryName);
-    await setFavorites(updated);
-  };
-
   const handleCreateFolder = async () => {
     try {
-      const folder = await createPromptFolder(folderNameDraft, activeCategory);
+      const folder = await createPromptFolder(folderNameDraft, "收藏");
+      await setFolders((current) => current.some((item) => item.id === folder.id) ? current : [...current, folder]);
       setSelectedFolderId(null);
       setIsCreatingFolder(false);
       setFolderNameDraft("");
-      setPanelMessage(`已在"${activeCategory}"下新建文件夹：${folder.name}`);
+      setPanelMessage(`已新建收藏夹：${folder.name}`);
     } catch (error) {
       setPanelMessage(error instanceof Error ? error.message : "新建文件夹失败。");
     }
@@ -333,7 +275,8 @@ export function FavoritesStudio(props: {
     setSelectedFolderId((current) => (current === folder.id ? null : current));
     setRenamingFolderId(null);
     setFolderNameDraft("");
-    setPanelMessage(`已删除文件夹：${folder.name}`);
+    setPanelMessage("");
+    showToast(`已删除收藏夹：${folder.name}`);
   };
 
   const moveFolder = async (sourceId: string, targetId: string) => {
@@ -341,31 +284,14 @@ export function FavoritesStudio(props: {
       return;
     }
 
-    const orderedIds = scopedFolders.map((folder) => folder.id);
-    const sourceIndex = orderedIds.indexOf(sourceId);
-    const targetIndex = orderedIds.indexOf(targetId);
-
-    if (sourceIndex === -1 || targetIndex === -1) {
-      return;
-    }
-
-    const nextOrderedIds = [...orderedIds];
-    const [movedId] = nextOrderedIds.splice(sourceIndex, 1);
-    nextOrderedIds.splice(targetIndex, 0, movedId);
-    await reorderPromptFolders(activeCategory, nextOrderedIds);
-    await setFolders((current) => {
-      const orderMap = new Map(nextOrderedIds.map((id, index) => [id, index]));
-      return current.map((folder) => {
-        if (folder.scope !== activeCategory || !orderMap.has(folder.id)) {
-          return folder;
-        }
-
-        return {
-          ...folder,
-          order: orderMap.get(folder.id) ?? folder.order
-        };
-      });
-    });
+    if (sortingRef.current) return;
+    sortingRef.current = true;
+    try {
+      const nextIds = moveOrderedId(scopedFolders.map((folder) => folder.id), sourceId, targetId);
+      await setFolders(await reorderPromptFolders(null, nextIds));
+      showToast("收藏夹顺序已保存");
+    } catch { showToast("保存顺序失败，请重试", "error"); }
+    finally { sortingRef.current = false; }
   };
 
   const handleCreatePrompt = async () => {
@@ -387,8 +313,11 @@ export function FavoritesStudio(props: {
       format: "cnPrompt",
       content: trimmedPrompt,
       group,
-      category: activeFolder ? `${activeFolder.scope || activeCategory}/${activeFolder.name}` : activeCategory,
+      category: "收藏",
+      folderIds: activeFolder ? [activeFolder.id] : [],
+      order: favorites.reduce((max, item) => Math.max(max, item.order ?? -1), -1) + 1,
       source: "user-created",
+      isFavorite: false,
       tags: []
     };
 
@@ -400,7 +329,7 @@ export function FavoritesStudio(props: {
         await setFavorites((current) => current.map((item) => item.id === updated.id ? updated : item));
         setPreviewRecord(updated);
       } else {
-        await setFavorites((current) => [record, ...current]);
+        await setFavorites((current) => [...current, record]);
       }
     } catch {
       showToast("保存失败，请重试");
@@ -426,6 +355,7 @@ export function FavoritesStudio(props: {
 
   const savePromptGroup = async (record: SavedPromptRecord, group: import("../types/prompt").PromptGroup) => {
     const updated = await updateFavoritePrompt(record.id, { group, content: formatPromptGroup(group), tags: [] });
+    if (!updated) throw new Error("提示词已删除，无法保存修改。");
     if (updated) {
       await setFavorites((current) => current.map((item) => item.id === updated.id ? updated : item));
       setPreviewRecord(updated);
@@ -468,22 +398,6 @@ export function FavoritesStudio(props: {
       } finally { setIsBackupBusy(false); }
     };
     input.click();
-  };
-
-  const saveTitleEdit = async (record: SavedPromptRecord) => {
-    const updated = await updateFavoritePrompt(record.id, { title: titleDraft.trim() });
-    if (updated) {
-      await setFavorites((current) =>
-        current.map((item) => (item.id === record.id ? updated : item))
-      );
-    }
-    setEditingTitleId(null);
-    setTitleDraft("");
-  };
-
-  const cancelTitleEdit = () => {
-    setEditingTitleId(null);
-    setTitleDraft("");
   };
 
   const optimizePrompt = async (record: SavedPromptRecord, direction?: string) => {
@@ -538,8 +452,6 @@ export function FavoritesStudio(props: {
       await setFavorites((current) =>
         current.map((item) => (item.id === record.id ? updatedRecord : item))
       );
-      setExpandedId(record.id);
-      setDraftContent(updatedRecord.content);
       setPreviewRecord((current) => current?.id === record.id ? updatedRecord : current);
       setOptimizationRecord(null);
       setPanelMessage(`AI 优化完成，当前使用模型：${result.model}`);
@@ -564,7 +476,7 @@ export function FavoritesStudio(props: {
             >
               <div
                 className="aurora-shell min-h-0 max-h-full w-full max-w-[460px] overflow-y-auto overscroll-contain rounded-[1.35rem] p-5"
-                role="dialog" aria-modal="true" aria-label="新建提示词组"
+                data-enter-confirm role="dialog" aria-modal="true" aria-label="新建提示词组"
                 onClick={(e) => {
                   e.stopPropagation();
                 }}
@@ -615,7 +527,7 @@ export function FavoritesStudio(props: {
                     onClick={() => {
                       void handleCreatePrompt();
                     }}
-                    disabled={isSavingPrompt || !promptTitleDraft.trim() || promptStepsDraft.some((step) => !step.content.trim())}
+                    data-enter-submit disabled={isSavingPrompt || !promptTitleDraft.trim() || promptStepsDraft.some((step) => !step.content.trim())}
                     className="gradient-button px-5 py-2.5 text-sm disabled:opacity-40"
                   >
                     {isSavingPrompt ? "保存中…" : "保存提示词组"}
@@ -627,6 +539,20 @@ export function FavoritesStudio(props: {
 
   const dialogContainer = libraryRef.current?.closest(".fluxora-shell");
   const promptEditor = promptCreateDialog && dialogContainer ? createPortal(promptCreateDialog, dialogContainer) : promptCreateDialog;
+  const folderPicker = folderPickerRecord ? <PromptFolderPicker
+    key={folderPickerRecord.id}
+    record={favorites.find((record) => record.id === folderPickerRecord.id) ?? folderPickerRecord}
+    folders={scopedFolders}
+    onClose={() => setFolderPickerRecord(null)}
+    onConfirm={async (folderId) => {
+      const updated = await collectPromptToFolder(folderPickerRecord.id, folderId);
+      await setFavorites((current) => current.map((record) => record.id === updated.id ? updated : record));
+      setPreviewRecord((current) => current?.id === updated.id ? updated : current);
+      setFolderPickerRecord(null);
+      showToast("已收藏到文件夹");
+    }}
+  /> : null;
+  const folderPickerDialog = folderPicker && dialogContainer ? createPortal(folderPicker, dialogContainer) : folderPicker;
 
   const renderAssetSection = (title: string, records: SavedPromptRecord[], emptyMessage: string) => (
     <section className="prompt-asset-section">
@@ -641,12 +567,12 @@ export function FavoritesStudio(props: {
       </div>
       {records.length > 0 ? (
         <div className="prompt-asset-grid">
-          {records.map((record) => (
+          {previewOrder(records, draggingPromptId).map((record, index) => (
             <PromptCard
               key={record.id}
               record={record}
               isCopied={copiedId === record.id}
-              isFavorite={record.isFavorite ?? true}
+              isFavorite={record.isFavorite ?? false}
               isOptimizing={busyId === record.id}
               onCopy={() => void handleCopy(record)}
               onOpen={() => {
@@ -656,6 +582,40 @@ export function FavoritesStudio(props: {
               onToggleFavorite={() => void toggleRecordFavorite(record)}
               onOptimize={() => setOptimizationRecord(record)}
               onDelete={() => void handleDeletePrompt(record)}
+              onCollectToFolder={() => setFolderPickerRecord(record)}
+              isDragging={draggingPromptId === record.id}
+              isDropTarget={Boolean(dropTargetId && draggingPromptId === record.id)}
+              isPreview={Boolean(draggingPromptId && draggingPromptId !== record.id && records[index]?.id !== record.id)}
+              onDragStart={(event) => {
+                event.stopPropagation();
+                event.dataTransfer.setData("application/x-prompt-butler-prompt", record.id);
+                event.dataTransfer.effectAllowed = "move";
+                const card = event.currentTarget.closest("article");
+                if (card) event.dataTransfer.setDragImage(card, 24, 24);
+                dragOrderRef.current = records.map((item) => item.id);
+                setDraggingPromptId(record.id);
+              }}
+              onDragEnd={finishDrag}
+              onDragOver={(event) => {
+                if (!event.dataTransfer.types.includes("application/x-prompt-butler-prompt")) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                if (record.id !== draggingPromptId) setDropTargetId(record.id);
+              }}
+              onDrop={(event) => {
+                const sourceId = event.dataTransfer.getData("application/x-prompt-butler-prompt");
+                if (!sourceId) return;
+                event.preventDefault();
+                event.stopPropagation();
+                void commitDrop(() => movePrompt(sourceId, dropTargetId ?? record.id, records));
+              }}
+              onReorderKey={(event) => {
+                if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+                event.preventDefault();
+                const index = records.findIndex((item) => item.id === record.id);
+                const next = records[index + (event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1)];
+                if (next) void movePrompt(record.id, next.id, records);
+              }}
             />
           ))}
         </div>
@@ -667,10 +627,10 @@ export function FavoritesStudio(props: {
 
   const promptPreviewDialog = <PromptPreviewModal
         onEditGroup={() => { if (previewRecord) editPromptGroup(previewRecord); }}
-        onSaveGroup={(group) => { if (previewRecord) void savePromptGroup(previewRecord, group); }}
+        onSaveGroup={async (group) => { if (!previewRecord) throw new Error("提示词详情已关闭。"); await savePromptGroup(previewRecord, group); }}
         record={previewRecord}
         isCopied={Boolean(previewRecord && copiedId === previewRecord.id)}
-        isFavorite={Boolean(previewRecord && (previewRecord.isFavorite ?? true))}
+        isFavorite={Boolean(previewRecord && (previewRecord.isFavorite ?? false))}
         onClose={() => setPreviewRecord(null)}
         onCopy={() => { if (previewRecord) void handleCopy(previewRecord); }}
         onSave={(content) => { if (previewRecord) void savePreviewContent(previewRecord, content); }}
@@ -685,6 +645,7 @@ export function FavoritesStudio(props: {
       {renderAssetSection(activeFolder.name, sortedFavorites, "这个收藏夹还没有提示词")}
       {assetFilter !== "all" ? <button type="button" className="ghost-button px-3 py-2 text-sm" onClick={() => { resetPromptDraft(); setPromptTitleDraft(""); setIsCreatingPrompt(true); }}><Plus className="h-4 w-4" />添加提示词</button> : null}
       {promptEditor}
+      {folderPickerDialog}
       {promptPreviewDialog}
       <PromptOptimizePanel record={optimizationRecord} busy={Boolean(optimizationRecord && busyId === optimizationRecord.id)} onClose={() => { if (!busyId) setOptimizationRecord(null); }} onOptimize={(direction) => { if (optimizationRecord) void optimizePrompt(optimizationRecord, direction); }} />
     </div>;
@@ -701,25 +662,61 @@ export function FavoritesStudio(props: {
             </div>
           </header>
           {isCreatingFolder ? (
-            <div className="prompt-folder-create-row">
-              <input className="form-field" value={folderNameDraft} onChange={(event) => setFolderNameDraft(event.target.value)} placeholder="收藏夹名称" autoFocus onKeyDown={(event) => { if (event.key === "Enter") void handleCreateFolder(); }} />
-              <button type="button" onClick={() => void handleCreateFolder()} disabled={!folderNameDraft.trim()}><Check className="h-4 w-4" /></button>
+            <div data-enter-confirm className="prompt-folder-create-row">
+              <input className="form-field" value={folderNameDraft} onChange={(event) => setFolderNameDraft(event.target.value)} placeholder="收藏夹名称" autoFocus />
+              <button type="button" data-enter-submit onClick={() => void handleCreateFolder()} disabled={!folderNameDraft.trim()}><Check className="h-4 w-4" /></button>
               <button type="button" onClick={() => { setIsCreatingFolder(false); setFolderNameDraft(""); }}><X className="h-4 w-4" /></button>
             </div>
           ) : null}
           <div className="prompt-folder-grid">
-            {scopedFolders.map((folder) => {
-              const folderCategory = `${folder.scope || "收藏"}/${folder.name}`;
-              const folderCount = favorites.filter((record) => record.category === folderCategory).length;
+            {previewOrder(scopedFolders, draggingFolderId).map((folder, index) => {
+              const folderCount = favorites.filter((record) => belongsToFolder(record, folder)).length;
               const isRenaming = renamingFolderId === folder.id;
               return (
-                <article key={folder.id}>
+                <motion.article key={folder.id}
+                  layout={reduceMotion ? false : "position"}
+                  initial={false}
+                  animate={{ scale: !reduceMotion && draggingFolderId === folder.id ? 1.045 : 1, rotate: !reduceMotion && draggingFolderId === folder.id ? -1.5 : 0 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 23, mass: 0.8 }}
+                  className={`${draggingFolderId === folder.id ? "is-dragging" : ""} ${dropTargetId && draggingFolderId === folder.id ? "is-drop-target" : ""} ${draggingFolderId && draggingFolderId !== folder.id && scopedFolders[index]?.id !== folder.id ? "is-sort-preview" : ""}`}
+                  onDragOver={(event) => {
+                    if (!event.dataTransfer.types.includes("application/x-prompt-butler-folder")) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    if (folder.id !== draggingFolderId) setDropTargetId(folder.id);
+                  }}
+                  onDrop={(event) => {
+                    const sourceId = event.dataTransfer.getData("application/x-prompt-butler-folder");
+                    if (!sourceId) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void commitDrop(() => moveFolder(sourceId, dropTargetId ?? folder.id));
+                  }}>
                   {isRenaming ? (
-                    <div className="prompt-folder-create-row"><input className="form-field" value={folderNameDraft} onChange={(event) => setFolderNameDraft(event.target.value)} autoFocus /><button type="button" onClick={() => void handleRenameFolder(folder)}><Check className="h-4 w-4" /></button><button type="button" onClick={() => { setRenamingFolderId(null); setFolderNameDraft(""); }}><X className="h-4 w-4" /></button></div>
+                    <div data-enter-confirm className="prompt-folder-create-row"><input className="form-field" value={folderNameDraft} onChange={(event) => setFolderNameDraft(event.target.value)} autoFocus /><button type="button" data-enter-submit onClick={() => void handleRenameFolder(folder)}><Check className="h-4 w-4" /></button><button type="button" onClick={() => { setRenamingFolderId(null); setFolderNameDraft(""); }}><X className="h-4 w-4" /></button></div>
                   ) : (
-                    <><button type="button" className="prompt-folder-open" onClick={() => setSelectedFolderId(folder.id)}><strong>{folder.name}</strong><span>{folder.scope || "收藏"} · {folderCount} 条</span></button><div><button type="button" onClick={() => { setRenamingFolderId(folder.id); setFolderNameDraft(folder.name); }} title="重命名"><PencilLine className="h-3.5 w-3.5" /></button><button type="button" onClick={() => void handleDeleteFolder(folder)} title="删除"><Trash2 className="h-3.5 w-3.5" /></button></div></>
+                    <><button type="button" className="prompt-folder-open" onClick={() => setSelectedFolderId(folder.id)}><strong>{folder.name}</strong><span>{folderCount} 条</span></button><div>
+                      <button type="button" className="prompt-drag-handle" draggable aria-label="调整收藏夹顺序" title="拖动调整顺序，也可用方向键调整"
+                        onDragStart={(event) => {
+                          event.stopPropagation();
+                          event.dataTransfer.setData("application/x-prompt-butler-folder", folder.id);
+                          event.dataTransfer.effectAllowed = "move";
+                          const card = event.currentTarget.closest("article");
+                          if (card) event.dataTransfer.setDragImage(card, 24, 24);
+                          dragOrderRef.current = scopedFolders.map((item) => item.id);
+                          setDraggingFolderId(folder.id);
+                        }}
+                        onDragEnd={finishDrag}
+                        onKeyDown={(event) => {
+                          if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+                          event.preventDefault();
+                          const index = scopedFolders.findIndex((item) => item.id === folder.id);
+                          const next = scopedFolders[index + (event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1)];
+                          if (next) void moveFolder(folder.id, next.id);
+                        }}><GripVertical className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => { setRenamingFolderId(folder.id); setFolderNameDraft(folder.name); }} title="重命名" aria-label={`重命名收藏夹 ${folder.name}`}><PencilLine className="h-3.5 w-3.5" /></button><button type="button" onClick={() => void handleDeleteFolder(folder)} title="删除" aria-label={`删除收藏夹 ${folder.name}`}><Trash2 className="h-3.5 w-3.5" /></button></div></>
                   )}
-                </article>
+                </motion.article>
               );
             })}
           </div>
@@ -732,245 +729,8 @@ export function FavoritesStudio(props: {
       )}
 
       {promptEditor}
+      {folderPickerDialog}
       {panelMessage ? <p className="library-status-message">{panelMessage}</p> : null}
-
-      <details className="prompt-library-management">
-        <summary>
-          <span>收藏夹</span>
-          <small>{scopedFolders.length}</small>
-        </summary>
-      <section className="glass-card p-4">
-        <div className="flex items-center gap-3">
-          <div className="text-sm font-medium text-white/88">{activeCategory}文件夹</div>
-          <div className="rounded-2xl border border-accent/35 bg-transparent px-2.5 py-1 text-xs font-semibold text-accent">
-            {categoryPromptCount} 条
-          </div>
-
-        </div>
-
-
-        <div className="mt-4 flex flex-wrap gap-3">
-          {scopedFolders.map((folder) => {
-            const isRenaming = renamingFolderId === folder.id;
-            const isDragging = draggingFolderId === folder.id;
-
-            if (isRenaming) {
-              return (
-                <div
-                  key={folder.id}
-                  className="flex h-24 w-24 flex-col justify-between rounded-[1.35rem] border border-accent/35 bg-black/25 p-3"
-                >
-                  <input
-                    value={folderNameDraft}
-                    onChange={(event) => {
-                      setFolderNameDraft(event.target.value);
-                    }}
-                    className="w-full bg-transparent text-center text-sm text-white outline-none"
-                    placeholder="文件夹名"
-                  />
-                  <div className="flex items-center justify-between text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void handleRenameFolder(folder);
-                      }}
-                      className="text-accent"
-                    >
-                      保存
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRenamingFolderId(null);
-                        setFolderNameDraft("");
-                      }}
-                      className="text-white/55"
-                    >
-                      取消
-                    </button>
-                  </div>
-                </div>
-              );
-            }
-
-            return (
-              <div key={folder.id} className="relative">
-                <button
-                  type="button"
-                  draggable
-                  onDragStart={() => {
-                    setDraggingFolderId(folder.id);
-                  }}
-                  onDragEnd={() => {
-                    setDraggingFolderId(null);
-                  }}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    if (!draggingFolderId) {
-                      return;
-                    }
-                    void moveFolder(draggingFolderId, folder.id);
-                    setDraggingFolderId(null);
-                  }}
-                  onClick={() => {
-                    setSelectedFolderId(folder.id);
-                  }}
-                  onDoubleClick={() => {
-                    setRenamingFolderId(folder.id);
-                    setFolderNameDraft(folder.name);
-                  }}
-                  className={[
-                    "glass-card flex h-24 w-24 flex-col items-center justify-center rounded-[1.35rem] border text-center transition",
-                    "border-white/10 bg-white/[0.06] text-white/70 hover:border-accent/30 hover:text-white",
-                    isDragging ? "opacity-60" : ""
-                  ].join(" ")}
-                >
-                  <div className="max-w-full truncate px-2 text-sm font-medium">{folder.name}</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleDeleteFolder(folder);
-                  }}
-                  className="absolute -right-2 -top-2 rounded-full border border-white/10 bg-slate-950/90 p-1.5 text-white/55 transition hover:text-rose-300"
-                  aria-label={`删除${folder.name}`}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            );
-          })}
-
-          {isCreatingFolder ? (
-            <div className="glass-card flex h-24 w-24 flex-col justify-between rounded-[1.35rem] border border-dashed border-accent/35 p-3">
-              <input
-                value={folderNameDraft}
-                onChange={(event) => {
-                  setFolderNameDraft(event.target.value);
-                }}
-                className="w-full bg-transparent text-center text-sm text-white outline-none"
-                placeholder="文件夹名"
-              />
-              <div className="flex items-center justify-between text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleCreateFolder();
-                  }}
-                  className="text-accent"
-                >
-                  保存
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCreatingFolder(false);
-                    setFolderNameDraft("");
-                  }}
-                  className="text-white/55"
-                >
-                  取消
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setIsCreatingFolder(true);
-                setFolderNameDraft("");
-              }}
-              className="glass-card flex h-24 w-24 items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 text-white/60 transition hover:border-accent/35 hover:text-accent"
-              aria-label="新建文件夹"
-            >
-              <Plus className="h-8 w-8" />
-            </button>
-          )}
-        </div>
-      </section>
-
-      {panelMessage ? (
-        <p className="library-status-message">{panelMessage}</p>
-      ) : null}
-
-      {!isLoading && sortedFavorites.length > 0 ? (
-        <section className="space-y-1.5">
-          <div className="px-1 mb-2 text-xs text-accent/70">
-            {scopedFolders.length > 0 ? `未分类提示词 · ${sortedFavorites.length} 条` : `${activeCategory} · ${sortedFavorites.length} 条`}
-          </div>
-          {sortedFavorites.map((record, index) => {
-            const isExpanded = expandedId === record.id;
-            const isBusy = busyId === record.id;
-            const isEditingTitle = editingTitleId === record.id;
-            const displayTitle = record.title || record.content.slice(0, 28);
-            const isFirst = index === 0;
-            const isLast = index === sortedFavorites.length - 1;
-
-            return (
-              <article key={record.id} className="media-card transition">
-                <div className="flex items-center gap-2 px-3 py-2">
-                  {isEditingTitle ? (
-                    <>
-                      <input
-                        value={titleDraft}
-                        onChange={(e) => setTitleDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") { e.preventDefault(); void saveTitleEdit(record); }
-                          if (e.key === "Escape") cancelTitleEdit();
-                        }}
-                        className="min-w-0 flex-1 rounded-lg border border-accent/35 bg-black/25 px-2 py-1 text-xs text-white outline-none"
-                        autoFocus
-                      />
-                      <button type="button" onClick={() => { void saveTitleEdit(record); }} className="shrink-0 rounded-md p-0.5 text-white/55 transition hover:text-accent"><Check className="h-3.5 w-3.5" /></button>
-                      <button type="button" onClick={cancelTitleEdit} className="shrink-0 rounded-md p-0.5 text-white/55 transition hover:text-rose-300"><X className="h-3.5 w-3.5" /></button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="min-w-0 flex-1 truncate text-xs text-white/70">{displayTitle}</span>
-                      <button type="button" onClick={() => { void handleSortAction(record.id, "pin"); }} disabled={isFirst} className="shrink-0 rounded-lg p-1 text-white/35 transition hover:text-accent disabled:cursor-not-allowed disabled:opacity-20"><Pin className="h-3.5 w-3.5" /></button>
-                      <button type="button" onClick={() => { void handleSortAction(record.id, "up"); }} disabled={isFirst} className="shrink-0 rounded-lg p-1 text-white/35 transition hover:text-accent disabled:cursor-not-allowed disabled:opacity-20"><ArrowUp className="h-3.5 w-3.5" /></button>
-                      <button type="button" onClick={() => { void handleSortAction(record.id, "down"); }} disabled={isLast} className="shrink-0 rounded-lg p-1 text-white/35 transition hover:text-accent disabled:cursor-not-allowed disabled:opacity-20"><ArrowDown className="h-3.5 w-3.5" /></button>
-                      <button type="button" onClick={() => { setEditingTitleId(record.id); setTitleDraft(record.title || ""); }} className="shrink-0 rounded-lg p-1 text-white/35 transition hover:text-accent"><PencilLine className="h-3.5 w-3.5" /></button>
-                      <button type="button" onClick={() => { void handleDeletePrompt(record); }} className="shrink-0 rounded-lg p-1 text-white/35 transition hover:text-rose-300"><Trash2 className="h-3.5 w-3.5" /></button>
-                    </>
-                  )}
-                  <button type="button" onClick={async () => {
-                    if (isCollectedPrompt(record)) { editPromptGroup(record); return; }
-                    if (isExpanded) { await flushPendingSave(record.id, draftContent); setExpandedId(null); setDraftContent(""); }
-                    else { setExpandedId(record.id); setDraftContent(record.content); }
-                  }} className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[11px] text-white/58 transition hover:border-accent/30 hover:text-white">
-                    {isCollectedPrompt(record) ? "编辑" : isExpanded ? "收起" : "展开"}
-                  </button>
-                </div>
-                {isExpanded ? (
-                  <div className="border-t border-white/5 px-3 py-3 space-y-3">
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/35">
-                      <span>{record.provider}</span><span>·</span><span>{record.model}</span><span>·</span><span>{formatTimestamp(record.updatedAt ?? record.createdAt)}</span>
-                    </div>
-                    <textarea value={draftContent} onChange={(e) => { setDraftContent(e.target.value); debouncedSave(record.id, e.target.value); }} className="form-field min-h-[150px] w-full resize-y leading-6" />
-                    {autoSavedId === record.id ? <div className="inline-flex items-center gap-1 text-[11px] text-accent/75"><Check className="h-3 w-3" />已自动保存</div> : null}
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => { void handleCopy(record); }} className="ghost-button rounded-xl px-3 py-2 text-xs">
-                        {copiedId === record.id ? <><Check className="h-3.5 w-3.5" />已复制</> : <><Copy className="h-3.5 w-3.5" />一键复制</>}
-                      </button>
-                      <button type="button" onClick={() => { void optimizePrompt(record); }} disabled={isBusy} className="gradient-button rounded-xl px-3 py-2 text-xs">
-                        {isBusy ? <><LoaderCircle className="h-3.5 w-3.5 animate-spin" />优化中...</> : <><Sparkles className="h-3.5 w-3.5" />AI一键优化</>}
-                      </button>
-                      <button type="button" onClick={() => { void handleDeletePrompt(record); }} className="ghost-button rounded-xl px-3 py-2 text-xs text-rose-300 hover:text-rose-200">
-                        <Trash2 className="h-3.5 w-3.5" />删除
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </article>
-            );
-          })}
-        </section>
-      ) : null}
-      </details>
 
       {promptPreviewDialog}
       <PromptOptimizePanel

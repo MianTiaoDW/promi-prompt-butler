@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import type { DragEventHandler, KeyboardEventHandler } from "react";
 import { dataUrlToObjectUrl, getExampleImagePayload } from "../lib/example-images";
 import { getPromptGroup, isCollectedPrompt } from "../lib/prompt-group";
-import { Check, Copy, Heart, Images, LoaderCircle, Sparkles, Trash2 } from "lucide-react";
+import { Check, Copy, FolderPlus, GripVertical, Heart, Images, LoaderCircle, Sparkles, Trash2 } from "lucide-react";
 
 import type { SavedPromptRecord } from "../types/prompt";
 
@@ -15,6 +17,15 @@ interface PromptCardProps {
   onToggleFavorite: () => void;
   onOptimize: () => void;
   onDelete: () => void;
+  onCollectToFolder: () => void;
+  onDragStart: DragEventHandler<HTMLElement>;
+  onDragEnd: DragEventHandler<HTMLElement>;
+  onDragOver: DragEventHandler<HTMLElement>;
+  onDrop: DragEventHandler<HTMLElement>;
+  onReorderKey: KeyboardEventHandler<HTMLButtonElement>;
+  isDragging: boolean;
+  isDropTarget: boolean;
+  isPreview: boolean;
 }
 
 export function PromptCard({
@@ -26,8 +37,18 @@ export function PromptCard({
   onOpen,
   onToggleFavorite,
   onOptimize,
-  onDelete
+  onDelete,
+  onCollectToFolder,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
+  onReorderKey,
+  isDragging,
+  isDropTarget,
+  isPreview
 }: PromptCardProps) {
+  const reduceMotion = useReducedMotion();
   const collected = isCollectedPrompt(record);
   const group = getPromptGroup(record);
   const [exampleUrl, setExampleUrl] = useState<string | null>(null);
@@ -48,7 +69,13 @@ export function PromptCard({
   const linkedImageCount = record.exampleImageIds?.length ?? 0;
 
   return (
-    <article className="prompt-asset-card">
+    <motion.article
+      layout={reduceMotion ? false : "position"}
+      initial={false}
+      animate={{ scale: !reduceMotion && isDragging ? 1.035 : 1, rotate: !reduceMotion && isDragging ? -1 : 0 }}
+      transition={{ type: "spring", stiffness: 420, damping: 23, mass: 0.8 }}
+      className={`prompt-asset-card ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${isPreview ? "is-sort-preview" : ""}`}
+      onDragOver={onDragOver} onDrop={onDrop}>
       <div className="flex min-w-0 flex-1 gap-4">
       <button type="button" className="prompt-card-open" onClick={onOpen}>
         <h3>{title}</h3>
@@ -65,8 +92,9 @@ export function PromptCard({
       <footer className="prompt-card-footer">
         {!collected ? <div className="prompt-asset-tags">
           {record.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}
-        </div> : <span className="text-xs text-white/45">{group.steps.length} 步</span>}
+        </div> : <span className="whitespace-nowrap text-xs text-white/45">{group.steps.length} 步</span>}
         <div className="prompt-card-actions">
+          <button type="button" className="prompt-drag-handle" draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onKeyDown={onReorderKey} title="拖动调整顺序，也可用方向键调整" aria-label="调整提示词顺序"><GripVertical className="h-4 w-4" /></button>
           <button type="button" onClick={onCopy} title="复制提示词" aria-label="复制提示词">
             {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           </button>
@@ -84,11 +112,12 @@ export function PromptCard({
           >
             <Heart className="h-4 w-4" fill={isFavorite ? "currentColor" : "none"} />
           </button>
+          <button type="button" onClick={onCollectToFolder} title="收藏到文件夹" aria-label="收藏到文件夹"><FolderPlus className="h-4 w-4" /></button>
           <button type="button" onClick={onDelete} title="删除 Prompt" aria-label="删除 Prompt" className="prompt-card-action-delete">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </footer>
-    </article>
+    </motion.article>
   );
 }

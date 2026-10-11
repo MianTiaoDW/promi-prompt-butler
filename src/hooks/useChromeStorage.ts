@@ -60,6 +60,7 @@ export function useChromeStorage<T>(key: string, fallbackValue: T) {
   }, [key]);
 
   const setValue = async (updater: Updater<T>) => {
+    const previousValue = valueRef.current;
     const nextValue =
       typeof updater === "function"
         ? (updater as (previous: T) => T)(valueRef.current)
@@ -69,7 +70,9 @@ export function useChromeStorage<T>(key: string, fallbackValue: T) {
     setValueState(nextValue);
 
     try {
-      await storageSet(key, nextValue);
+      const saved = await storageSet(key, nextValue, previousValue);
+      valueRef.current = saved;
+      setValueState(saved);
       setError(null);
     } catch (storageError) {
       const message =

@@ -1,3 +1,4 @@
+import { confirmInputOnBlankClick, confirmInputOnEnter, startInputComposition, finishInputComposition } from "../lib/enter-confirm";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Activity, ArrowLeft, BrainCircuit, Check, ChevronDown, DatabaseZap, Eye, EyeOff, X } from "lucide-react";
@@ -115,12 +116,13 @@ function ModelCombobox({
             setIsOpen(true);
           }}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || event.repeat) return;
             if (event.key === "Escape") setIsOpen(false);
             if (event.key === "ArrowDown") setIsOpen(true);
             if (event.key === "Enter" && isOpen && filteredOptions.length === 1) {
-              event.preventDefault();
               selectModel(filteredOptions[0]);
             }
+            if (event.key === "Enter" && !event.shiftKey) setIsOpen(false);
           }}
           placeholder={placeholder}
           className="form-field settings-control model-combobox-input"
@@ -390,7 +392,7 @@ export function OptionsApp() {
         : "text-secondary";
 
   return (
-    <main className="settings-page min-h-screen bg-canvas text-primary">
+    <main data-enter-confirm onKeyDown={confirmInputOnEnter} onPointerDownCapture={confirmInputOnBlankClick} onCompositionStartCapture={startInputComposition} onCompositionEndCapture={finishInputComposition} className="settings-page min-h-screen bg-canvas text-primary">
       <header className="settings-app-bar">
         <div className="mx-auto flex h-full w-full max-w-6xl items-center justify-between gap-4 px-6 md:px-8">
           <div className="flex min-w-0 items-center gap-3">
@@ -675,7 +677,7 @@ export function OptionsApp() {
             <div className="settings-actions">
               <button
                 type="button"
-                onClick={() => void handleSave()}
+                data-enter-submit onClick={() => void handleSave()}
                 className="gradient-button min-w-[112px]"
                 disabled={!isDirty}
               >

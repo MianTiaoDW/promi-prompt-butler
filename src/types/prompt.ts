@@ -102,6 +102,7 @@ export interface PromptGroup {
 }
 
 export interface SavedPromptRecord {
+  folderIds?: string[];
   group?: PromptGroup;
   id: string;
   title: string;

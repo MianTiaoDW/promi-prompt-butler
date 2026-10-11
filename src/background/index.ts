@@ -12,6 +12,7 @@ import {
   recoverInterruptedTasks
 } from "../lib/task-broker";
 import { removeRetiredSeedPrompts } from "../lib/prompt-library";
+import { mergeStoredCollection } from "../lib/collection-storage";
 import type { RuntimeRequestMessage } from "../types/runtime";
 import {
   sessionStorageGet,
@@ -150,6 +151,10 @@ chrome.action.onClicked.addListener(() => {
 chrome.runtime.onMessage.addListener((message: RuntimeRequestMessage, _sender, sendResponse) => {
   void (async () => {
     try {
+      if (message.type === "storage:merge-collection") {
+        sendResponse({ ok: true, records: await mergeStoredCollection(message.payload) });
+        return;
+      }
       if (message.type === "provider:test-connection") {
         const result = await testProviderConnection(message.payload.settings);
         sendResponse(result);

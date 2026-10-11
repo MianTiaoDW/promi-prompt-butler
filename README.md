@@ -23,7 +23,7 @@
 
 ---
 
-> **当前开发基准（2026-07-24）**：`origin/main` 仍是旧版。需要继续最新本地功能、视觉与隔离实验时，请检出 `codex/optical-fidelity-lab`，并先阅读 [`docs/CODEX_HANDOFF.md`](docs/CODEX_HANDOFF.md)。该分支尚未合并，不应被旧版 `main` 覆盖。
+> **当前开发基准（2026-10-12）**：最新正式插件位于 `main`，与 `codex/optical-fidelity-lab` 本次同步一致。跨电脑接续先阅读 [`docs/CODEX_HANDOFF.md`](docs/CODEX_HANDOFF.md)，拉取最新 `main` 后执行 `npm ci`、`npm run build`，在 Chrome 加载本机生成的 `dist/`。
 
 ---
 
@@ -40,7 +40,7 @@
 - **角色设定扩写** — 输入角色预设 + 用户需求，调用大模型生成三种格式的专业提示词
 - **收藏夹管理** — 文件夹分类、搜索、导入/导出备份、AI 一键优化已有提示词
 - **图像生成** — 提示词直出图片，支持单张/批量下载
-- **自定义标签** — 自由创建分类，独立管理各自收藏体系
+- **收藏夹整理与排序** — 卡片可加入已有或新建收藏夹；拖动时半透明让位预览，松手保存顺序，重启后保留
 - **配置中心** — 支持 Claude / Gemini / ChatGPT / Deepseek 等十余种服务商
 - **暗黑毛玻璃 UI** — 全局悬浮窗，可拖拽，高颜值玻璃态暗黑界面
 
@@ -77,7 +77,7 @@
    ```bash
    git clone https://github.com/MianTiaoDW/prompt-butler.git
    cd prompt-butler
-   git switch --track origin/codex/optical-fidelity-lab
+   git switch main
    ```
 
 2. 安装依赖并构建：
