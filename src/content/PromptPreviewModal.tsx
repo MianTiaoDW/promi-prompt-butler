@@ -1,6 +1,7 @@
+import { FavoriteButton } from "./FavoriteButton";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Copy, Eye, Heart, Image, PencilLine, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Copy, Eye, Image, PencilLine, Plus, Sparkles, Trash2, X } from "lucide-react";
 
 import type { PromptGroup, PromptOutputFormat, SavedPromptRecord } from "../types/prompt";
 import { useModalFocus } from "../hooks/useModalFocus";
@@ -202,7 +203,7 @@ export function PromptPreviewModal({
                 <p className="prompt-preview-source">来源：{sourceLabel ?? (record.source === "ai-generated" ? "AI 生成" : record.source === "system-template" || record.id.startsWith("seed-") ? "系统模板" : "用户创建")}</p>
                 </>}
               </div>
-              {showLibraryActions ? <button type="button" className={`prompt-preview-favorite ${isFavorite ? "is-favorite" : ""}`} onClick={onToggleFavorite} aria-label={isFavorite ? "取消收藏" : "收藏"}><Heart className="h-4 w-4" fill={isFavorite ? "currentColor" : "none"} /></button> : null}
+              {showLibraryActions ? <FavoriteButton active={isFavorite} onToggle={onToggleFavorite} className="prompt-preview-favorite" /> : null}
               <button type="button" onClick={onClose} aria-label="关闭预览"><X className="h-4 w-4" /></button>
             </header>
 

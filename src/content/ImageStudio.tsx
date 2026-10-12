@@ -12,7 +12,6 @@ import {
 import { useChromeStorage } from "../hooks/useChromeStorage";
 import { useExtensionSettings } from "../hooks/useExtensionSettings";
 import {
-  clearImageHistory,
   defaultImageWorkspaceState,
   IMAGE_STORAGE_KEYS
 } from "../lib/image-library";
@@ -31,13 +30,8 @@ import { IMAGE_ASPECT_RATIOS, IMAGE_COUNTS, IMAGE_RESOLUTIONS } from "../types/s
 import { PromptHistoryPanel } from "./PromptHistoryPanel";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import { PromptPreviewModal } from "./PromptPreviewModal";
-import { WorkflowConnector } from "./WorkflowConnector";
+import { ImageParameterSelect } from "./ImageParameterSelect";
 import { MOTION } from "../lib/motion";
-
-const selectClassName = [
-  "form-field appearance-none w-full pl-4 pr-10 py-3",
-  "cursor-pointer hover:border-accent/30"
-].join(" ");
 
 function getGalleryAspectClass(aspectRatio: ExtensionSettings["imageAspectRatio"]) {
   if (aspectRatio === "1:1") return "aspect-square";
@@ -72,11 +66,23 @@ export function ImageStudio(props: {
   const [pendingExampleImage, setPendingExampleImage] = useState<GeneratedImageAsset | null>(null);
   const generationLockRef = useRef(false);
 
+  const historyStorage = useChromeStorage<ImageHistoryEntry[]>(IMAGE_STORAGE_KEYS.history, []);
   useEffect(() => {
-    // 旧版本的历史记录持久化了会失效的图片 URL；新历史仅保留当前会话。
-    void clearImageHistory();
-    void storageSet("prompt-butler-image-task", null);
-  }, []);
+    let cancelled = false;
+    void sendRuntimeMessage<{ ok: boolean; entries?: ImageHistoryEntry[]; message?: string }>({ type: "image-history:read" }).then(result => {
+      if (cancelled) return;
+      if (result.ok) setImageHistory(result.entries ?? []);
+      else showToast(result.message ?? "读取创作历史失败", "error");
+    }).catch(() => { if (!cancelled) showToast("读取创作历史失败", "error"); });
+    return () => { cancelled = true; };
+  }, [historyStorage.value]);
+  const clearHistory = async () => {
+    try {
+      const result = await sendRuntimeMessage<{ ok: boolean }>({ type: "image-history:clear" });
+      if (!result.ok) throw new Error("清空创作历史失败");
+      setImageHistory([]);
+    } catch { showToast("清空创作历史失败", "error"); }
+  };
 
   const { value: workspace, setValue: setWorkspace } = workspaceStorage;
   const sourcePromptRecord: SavedPromptRecord | null = workspace.source ? {
@@ -149,6 +155,7 @@ export function ImageStudio(props: {
           type: "image:generate",
           payload: {
             settings,
+            source: workspace.source,
             input: {
               prompt: workspace.prompt,
               count: settings.imageCount,
@@ -167,31 +174,9 @@ export function ImageStudio(props: {
       );
 
       setGenerationResult(result);
+      if (result.ok && result.historySaveError) showToast(result.historySaveError, "error");
 
-      if (result.ok) {
-        let linkedRecord: SavedPromptRecord | null = null;
-        if (workspace.source?.promptId) {
-          const records = await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
-          linkedRecord = records.find((record) => record.id === workspace.source?.promptId) ?? null;
-        }
 
-        const historyEntries: ImageHistoryEntry[] = result.images.map((image) => ({
-          id: image.id,
-          url: image.url,
-          prompt: workspace.prompt,
-          model: result.model,
-          provider: result.provider,
-          resolution: settings.imageResolution,
-          aspectRatio: settings.imageAspectRatio,
-          count: settings.imageCount,
-          generatedAt: result.generatedAt,
-          revisedPrompt: image.revisedPrompt,
-          promptId: linkedRecord?.id ?? workspace.source?.promptId,
-          promptTitle: linkedRecord?.title ?? workspace.source?.title,
-          promptSource: workspace.source
-        }));
-        setImageHistory((current) => [...historyEntries, ...current].slice(0, 50));
-      }
     } catch (error) {
       const friendly = toUserFacingError(error);
       await failImageTask(friendly.technicalDetails);
@@ -335,74 +320,12 @@ export function ImageStudio(props: {
           </div>
         </div>
 
-        {workspace.source ? (
-          <WorkflowConnector
-            title={workspace.source.title}
-            sourceLabel={workspace.source.type === "temporary" ? "临时 Prompt" : workspace.source.type === "ai-generated" ? "AI 生成" : workspace.source.type === "system-template" ? "系统模板" : "用户创建"}
-            onView={() => { void openPromptAsset(workspace.source?.promptId); }}
-          />
-        ) : null}
+
 
         <div className="image-parameter-bar">
-          <label className="block">
-            <span className="mb-1.5 block text-xs text-white/50">图像比例</span>
-            <div className="relative">
-              <select
-                value={settings.imageAspectRatio}
-                onChange={(event) => {
-                  void setImageAspectRatio(event.target.value as typeof settings.imageAspectRatio);
-                }}
-                className={selectClassName}
-              >
-                {IMAGE_ASPECT_RATIOS.map((ratio) => (
-                  <option key={ratio} value={ratio} className="bg-slate-950 text-white">
-                    {ratio}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-            </div>
-          </label>
-
-          <label className="block">
-            <span className="mb-1.5 block text-xs text-white/50">分辨率</span>
-            <div className="relative">
-              <select
-                value={settings.imageResolution}
-                onChange={(event) => {
-                  void setImageResolution(event.target.value as typeof settings.imageResolution);
-                }}
-                className={selectClassName}
-              >
-                {IMAGE_RESOLUTIONS.map((resolution) => (
-                  <option key={resolution} value={resolution} className="bg-slate-950 text-white">
-                    {resolution}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-            </div>
-          </label>
-
-          <label className="block">
-            <span className="mb-1.5 block text-xs text-white/50">生成数量</span>
-            <div className="relative">
-              <select
-                value={settings.imageCount}
-                onChange={(event) => {
-                  void setImageCount(Number(event.target.value) as typeof settings.imageCount);
-                }}
-                className={selectClassName}
-              >
-                {IMAGE_COUNTS.map((count) => (
-                  <option key={count} value={count} className="bg-slate-950 text-white">
-                    {count} 张
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-            </div>
-          </label>
+          <ImageParameterSelect label="图像比例" value={settings.imageAspectRatio} options={IMAGE_ASPECT_RATIOS.map(value => ({ value, label: value }))} onChange={value => { void setImageAspectRatio(value as typeof settings.imageAspectRatio); }} />
+          <ImageParameterSelect label="分辨率" value={settings.imageResolution} options={IMAGE_RESOLUTIONS.map(value => ({ value, label: value }))} onChange={value => { void setImageResolution(value as typeof settings.imageResolution); }} />
+          <ImageParameterSelect label="生成数量" value={String(settings.imageCount)} options={IMAGE_COUNTS.map(value => ({ value: String(value), label: `${value} 张` }))} onChange={value => { void setImageCount(Number(value) as typeof settings.imageCount); }} />
         </div>
 
         <textarea
@@ -461,7 +384,7 @@ export function ImageStudio(props: {
         <div className="image-results-heading">
           <div>
             <div className="section-label">本次生成结果</div>
-            <div className="section-hint">临时结果 · 关闭后不保留</div>
+            <div className="section-hint">生成后自动保存至 prompt-butler／创作历史</div>
           </div>
           {!isGenerating && generationResult?.ok ? <div className="image-asset-actions"><button type="button" disabled={isDownloadingAll} onClick={() => void handleDownload(generationResult.images.map((image) => image.url))}><Download className="h-4 w-4" />{isDownloadingAll ? "保存中" : "保存作品"}</button><button type="button" onClick={() => void saveCurrentPrompt()}><Save className="h-4 w-4" />保存 Prompt</button></div> : null}
         </div>
@@ -556,7 +479,7 @@ export function ImageStudio(props: {
                     {savedExampleIds.has(image.id) ? "已设为示例图" : "设为示例图"}
                   </button>
                 </div>
-                <div className="border-t border-white/10 px-3 py-2 text-[11px] text-white/45">临时结果 · 关闭后不保留</div>
+                <div className="border-t border-white/10 px-3 py-2 text-[11px] text-white/45">生成后自动保存至 prompt-butler／创作历史</div>
                 {image.revisedPrompt ? (
                   <div className="border-t border-white/10 px-3 py-3 text-xs leading-5 text-white/45">
                     {image.revisedPrompt}
@@ -592,7 +515,7 @@ export function ImageStudio(props: {
         entries={imageHistory}
         open={showHistory}
         onToggle={() => setShowHistory((current) => !current)}
-        onClear={() => setImageHistory([])}
+        onClear={() => { void clearHistory(); }}
         onRestore={(entry) => { void restoreHistoryEntry(entry); }}
         onDownload={(entry) => { void handleDownload([entry.url], entry.id); }}
         onViewPrompt={(entry) => { void openPromptAsset(entry.promptId); }}

@@ -1,3 +1,4 @@
+import { saveCreationHistory, readCreationHistory, clearCreationHistory } from "./creation-history";
 import { cancelImageGeneration, downloadImages, generateImagesWithProvider } from "./image-generator";
 import { detectProviderModels } from "./model-discovery";
 import { generatePromptFromProvider } from "./prompt-generator";
@@ -11,7 +12,7 @@ import {
   markPromptTaskGenerating,
   recoverInterruptedTasks
 } from "../lib/task-broker";
-import { removeRetiredSeedPrompts } from "../lib/prompt-library";
+import { ensureDefaultPrompts, removeRetiredSeedPrompts } from "../lib/prompt-library";
 import { mergeStoredCollection } from "../lib/collection-storage";
 import type { RuntimeRequestMessage } from "../types/runtime";
 import {
@@ -50,7 +51,9 @@ async function updateConnectionStatus(connectionStatus: ConnectionStatus) {
   });
 }
 
-void removeRetiredSeedPrompts();
+void removeRetiredSeedPrompts()
+  .then(() => ensureDefaultPrompts())
+  .catch((error) => console.warn("[Prompt Butler] 默认提示词初始化失败：", error));
 
 const APP_WINDOW_PATH = "options.html?view=app";
 const APP_WINDOW_SESSION_KEY = "prompt-butler-app-window-id";
@@ -190,6 +193,16 @@ chrome.runtime.onMessage.addListener((message: RuntimeRequestMessage, _sender, s
         return;
       }
 
+      if (message.type === "image-history:read") {
+        sendResponse({ ok: true, entries: await readCreationHistory() });
+        return;
+      }
+      if (message.type === "image-history:clear") {
+        await clearCreationHistory();
+        sendResponse({ ok: true });
+        return;
+      }
+
       if (message.type === "image:generate") {
         await updateConnectionStatus("testing");
         await markImageTaskGenerating(WORKER_SESSION_ID);
@@ -204,9 +217,23 @@ chrome.runtime.onMessage.addListener((message: RuntimeRequestMessage, _sender, s
               message: toUserFacingError(rawResult.message).message,
               technicalDetails: rawResult.message
             };
+        let historySaveError: string | undefined;
+        if (result.ok) {
+          try {
+            const snapshots = await saveCreationHistory(result.images.map(image => ({
+              id: image.id, url: image.url, prompt: message.payload.input.prompt,
+              model: result.model, provider: result.provider,
+              resolution: message.payload.input.resolution, aspectRatio: message.payload.input.aspectRatio,
+              count: message.payload.input.count, generatedAt: result.generatedAt,
+              revisedPrompt: image.revisedPrompt, promptId: message.payload.source?.promptId,
+              promptTitle: message.payload.source?.title, promptSource: message.payload.source
+            })));
+            await downloadImages(snapshots.map(entry => entry.url), "创作历史");
+          } catch { historySaveError = "图片已生成，但自动保存未完成，请先下载保存作品。"; }
+        }
         await finishImageTask(result);
         await updateConnectionStatus(result.ok ? "success" : "error");
-        sendResponse(result);
+        sendResponse({ ...result, historySaveError });
         return;
       }
 

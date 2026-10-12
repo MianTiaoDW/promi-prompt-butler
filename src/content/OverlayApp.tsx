@@ -1,3 +1,4 @@
+import RubberSegment from "../components/RubberSegment/RubberSegment";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowUp, Pin, Search, Settings, X } from "lucide-react";
@@ -6,6 +7,8 @@ import { confirmInputOnBlankClick, confirmInputOnEnter, startInputComposition, f
 import { FavoritesStudio } from "./FavoritesStudio";
 import { ImageStudio } from "./ImageStudio";
 import { RolePromptStudio } from "./RolePromptStudio";
+import { useTheme } from "../hooks/useTheme";
+import { ThemeSwitcher } from "./ThemeSwitcher";
 import { FloatingOverlay } from "./FloatingOverlay";
 import {
   PROMPT_STORAGE_KEYS
@@ -61,6 +64,7 @@ export function OverlayApp({
     typeof chrome !== "undefined" && chrome.runtime?.getURL
       ? chrome.runtime.getURL(iconAssetPath.replace(/^\//, ""))
       : iconAssetPath;
+  const { rootRef: themeRootRef, mode: themeMode, setMode: setThemeMode } = useTheme();
   const [activeTab, setActiveTab] = useState<string>("角色设定");
   const [searchQuery, setSearchQuery] = useState("");
   const [assetFilter, setAssetFilter] = useState<PromptAssetFilter>("all");
@@ -160,7 +164,7 @@ export function OverlayApp({
       setToast(event);
       toastTimerRef.current = setTimeout(() => {
         setToast(null);
-      }, event.tone === "error" ? 3600 : 2000);
+      }, 2000);
     });
   }, []);
 
@@ -185,6 +189,7 @@ export function OverlayApp({
 
   const openWorkspace = (workspace: "identity" | "library" | "image") => {
     setSearchQuery("");
+    setQuickPromptRequest(null);
     if (workspace === "identity") {
       setActiveTab("角色设定");
       return;
@@ -259,6 +264,7 @@ export function OverlayApp({
 
   const panel = (
     <motion.section
+      ref={themeRootRef}
       onKeyDown={confirmInputOnEnter}
       onPointerDownCapture={confirmInputOnBlankClick}
       onCompositionStartCapture={startInputComposition}
@@ -272,17 +278,17 @@ export function OverlayApp({
         </div>
         <header className={`glass-titlebar fluxora-titlebar flex h-14 items-center justify-between px-4 ${embedded ? "" : "drag-handle cursor-move"}`}>
           <div className="workspace-brand flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.08]">
-              <img src={iconUrl} alt="" className="h-9 w-9 rounded-xl" />
+            <div className="flex h-9 w-9 items-center justify-center">
+              <img src={iconUrl} alt="" className="h-9 w-9 object-contain" />
             </div>
             <div>
-              <div className="workspace-brand-name text-sm font-semibold tracking-[-0.02em] text-white" title="提示词生成管家">
-                提示词生成管家
+              <div className="workspace-brand-name text-sm font-semibold tracking-[-0.02em] text-white" title="Promi 提示词管家">
+                Promi 提示词管家
               </div>
             </div>
           </div>
           <div className="workspace-system-controls flex items-center gap-2">
-            <div data-no-drag className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-2 text-xs text-white/70">
+            <div data-no-drag className="workspace-status-pill flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-2 text-xs text-white/70">
               <span
                 className={["connection-status-dot", statusDotClassName].join(" ")}
               />
@@ -309,11 +315,12 @@ export function OverlayApp({
                 <Pin className="h-4 w-4" />
               </button>
             ) : null}
-            {(!embedded || appWindow) && onClose ? (
-              <button type="button" onClick={onClose} className="icon-button" aria-label="关闭提示词生成管家" title="关闭">
+            {!embedded && !appWindow && onClose ? (
+              <button type="button" onClick={onClose} className="icon-button" aria-label="关闭Promi 提示词管家" title="关闭">
                 <X className="h-4 w-4" />
               </button>
             ) : null}
+            <ThemeSwitcher mode={themeMode} onChange={setThemeMode} />
           </div>
         </header>
 
@@ -323,34 +330,27 @@ export function OverlayApp({
           className="aura-content fluxora-content flex-1 overflow-y-auto"
           onScroll={(event) => handleContentScroll(event.currentTarget.scrollTop)}
         >
-          <nav className="workspace-switcher" aria-label="工作区">
-            {[
-              { id: "library", label: "提示词库" },
-              { id: "identity", label: "创作" },
-              { id: "image", label: "图像工坊" }
-            ].map((workspace) => (
-              <button
-                key={workspace.id}
-                type="button"
-                onClick={() => {
-                  openWorkspace(workspace.id as "identity" | "library" | "image");
-                }}
-                className={[
-                  "workspace-switcher-item",
-                  activeWorkspace === workspace.id ? "workspace-switcher-item-active" : ""
-                ].join(" ")}
-              >
-                {activeWorkspace === workspace.id ? (
-                  <motion.span
-                    layoutId="workspace-switcher-selection"
-                    className="workspace-switcher-selection"
-                    transition={{ duration: shouldReduceMotion ? 0 : MOTION.pageMs / 1000, ease: MOTION.easeOut }}
-                    aria-hidden="true"
-                  />
-                ) : null}
-                <span className="workspace-switcher-label">{workspace.label}</span>
-              </button>
-            ))}
+          <nav className="workspace-navigation" aria-label="工作区">
+            <RubberSegment
+              items={[{ value: "library", label: "提示词库" }, { value: "identity", label: "创作" }, { value: "image", label: "图像工坊" }]}
+              value={activeWorkspace}
+              onChange={(value) => openWorkspace(value as "identity" | "library" | "image")}
+              trackColor="var(--bg-control-glass)"
+              thumbColor="#0467FB"
+              textColor="var(--text-primary)"
+              activeTextColor="#ffffff"
+              size="lg"
+              radius={16}
+              inset={0}
+              equalSlots
+              stretch={100}
+              squash={3}
+              speed={1}
+              glide={75}
+              draggable
+              className="workspace-rubber-navigation"
+              aria-label="切换工作区"
+            />
           </nav>
 
           {activeWorkspace === "library" ? (
@@ -477,13 +477,14 @@ export function OverlayApp({
           ) : null}
         </motion.div>
 
+        <div className="workspace-toast-position">
         <AnimatePresence>
           {toast ? (
             <motion.div
               key={toast.id}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
+              exit={{ opacity: 0, y: 6, transition: { duration: shouldReduceMotion ? 0.06 : 0.45 } }}
               transition={{ duration: shouldReduceMotion ? 0.06 : MOTION.toastEnterMs / 1000, ease: MOTION.easeOut }}
               className={`workspace-toast ${toast.tone === "error" ? "workspace-toast-error" : ""}`}
               role={toast.tone === "error" ? "alert" : "status"}
@@ -494,6 +495,7 @@ export function OverlayApp({
             </motion.div>
           ) : null}
         </AnimatePresence>
+        </div>
     </motion.section>
   );
 

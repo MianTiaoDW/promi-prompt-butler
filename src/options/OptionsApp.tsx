@@ -1,3 +1,4 @@
+import { useTheme } from "../hooks/useTheme";
 import { confirmInputOnBlankClick, confirmInputOnEnter, startInputComposition, finishInputComposition } from "../lib/enter-confirm";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -23,8 +24,6 @@ import { cleanupExampleImages, getExampleImageUsage } from "../lib/example-image
 import { storageGet } from "../lib/storage";
 import { PROMPT_STORAGE_KEYS } from "../lib/prompt-library";
 import type { SavedPromptRecord } from "../types/prompt";
-
-type ModelField = "reasoningModel" | "visionModel" | "imageModel";
 
 function formatMegabytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
@@ -178,6 +177,7 @@ function formatTestTime(timestamp: string | null) {
 }
 
 export function OptionsApp() {
+  useTheme();
   const shouldReduceMotion = useReducedMotion();
   const showUnsupportedNotice = new URLSearchParams(window.location.search).get("notice") === "unsupported";
   const { settings, isLoading, error, updateSettings } = useExtensionSettings();
@@ -206,7 +206,7 @@ export function OptionsApp() {
   const showToast = (message: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToastMessage(message);
-    toastTimerRef.current = setTimeout(() => setToastMessage(null), 2400);
+    toastTimerRef.current = setTimeout(() => setToastMessage(null), 2000);
   };
 
   const isDraftConfigured = isSettingsConfigured(draftSettings);
@@ -384,7 +384,7 @@ export function OptionsApp() {
   const apiKeyIsSaved = Boolean(settings.apiKey) && draftSettings.apiKey === settings.apiKey;
   const imageApiKeyIsSaved = Boolean(settings.imageApiKey) && draftSettings.imageApiKey === settings.imageApiKey;
   const connectionToneClass = connectionStatus === "success"
-    ? "text-accent"
+    ? "connection-success-text"
     : connectionStatus === "error"
       ? "text-rose-300"
       : connectionStatus === "testing"
@@ -791,12 +791,13 @@ export function OptionsApp() {
         </section>
       </motion.div>
 
+      <div className="settings-toast-position">
       <AnimatePresence>
         {toastMessage ? (
           <motion.div
-            initial={{ opacity: 0, x: "-50%", y: -8 }}
-            animate={{ opacity: 1, x: "-50%", y: 0 }}
-            exit={{ opacity: 0, x: "-50%", y: -8 }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6, transition: { duration: shouldReduceMotion ? 0.06 : 0.45 } }}
             transition={{ duration: shouldReduceMotion ? 0.06 : MOTION.toastEnterMs / 1000, ease: MOTION.easeOut }}
             className="settings-toast"
             role="status"
@@ -807,6 +808,7 @@ export function OptionsApp() {
           </motion.div>
         ) : null}
       </AnimatePresence>
+      </div>
     </main>
   );
 }

@@ -1,0 +1,22 @@
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const esbuild = require('esbuild');
+(async () => {
+  const result = await esbuild.build({entryPoints:[path.resolve(__dirname,'../src/background/image-generator.ts')],bundle:true,write:false,platform:'node',format:'cjs'});
+  const loaded={exports:{}};
+  new Function('module','exports','require',result.outputFiles[0].text)(loaded,loaded.exports,require);
+  const calls=[];
+  const listeners=new Set();
+  let interrupted=false;
+  global.chrome={downloads:{download:async options=>{calls.push(options);return calls.length;},search:async()=>[{state:interrupted?'interrupted':'complete',error:'FILE_FAILED'}],onChanged:{addListener:listener=>listeners.add(listener),removeListener:listener=>listeners.delete(listener)}}};
+  await loaded.exports.downloadImages(['data:image/png;base64,aA==','data:image/jpeg;base64,aA=='],'创作历史');
+  await loaded.exports.downloadImages(['data:image/webp;base64,aA==']);
+  assert.match(calls[0].filename,/^prompt-butler\/创作历史\/.*\.png$/);
+  assert.match(calls[1].filename,/^prompt-butler\/创作历史\/.*\.jpg$/);
+  assert.match(calls[2].filename,/^prompt-butler\/下载图片\/.*\.webp$/);
+  assert(calls.every(call=>call.saveAs===false && call.conflictAction==='uniquify'));
+  interrupted=true;
+  await assert.rejects(loaded.exports.downloadImages(['data:image/png;base64,aA==']),/保存失败/);
+  assert.equal(listeners.size,0);
+  console.log('PASS: automatic history and manual download directories, format, completion and failure handling');
+})().catch(error=>{console.error(error);process.exitCode=1;});

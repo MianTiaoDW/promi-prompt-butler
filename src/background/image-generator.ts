@@ -1,3 +1,4 @@
+import { fetchImageAsDataUrl } from "./example-image-store";
 import type { GeneratedImageAsset, ImageGenerationInput, ImageGenerationResult } from "../types/image";
 import type { ExtensionSettings } from "../types/settings";
 import { getImageConnectionSettings } from "../lib/provider-presets";
@@ -13,13 +14,6 @@ export function cancelImageGeneration() {
 
 function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, "");
-}
-
-function buildUrl(baseUrl: string, path: string) {
-  const normalizedBaseUrl = trimTrailingSlash(baseUrl.trim());
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-
-  return `${normalizedBaseUrl}${normalizedPath}`;
 }
 
 function usesXingheGptImage2Payload(endpoint: string, model: string) {
@@ -392,21 +386,44 @@ export async function generateImagesWithProvider(
   }
 }
 
-export async function downloadImages(urls: string[]) {
+export async function downloadImages(urls: string[], folder: "下载图片" | "创作历史" = "下载图片") {
   const downloadResults: number[] = [];
 
   for (let index = 0; index < urls.length; index += 1) {
-    const url = urls[index];
+    const url = urls[index].startsWith("data:") ? urls[index] : await fetchImageAsDataUrl(urls[index]);
+    const mime = /^data:image\/([^;,]+)/i.exec(url)?.[1];
+    const extension = mime === "jpeg" ? "jpg" : mime === "webp" ? "webp" : "png";
     const downloadId = await chrome.downloads.download({
       url,
-      filename: `prompt-butler/generated-${Date.now()}-${index + 1}.png`,
+      filename: `prompt-butler/${folder}/generated-${Date.now()}-${index + 1}.${extension}`,
+      conflictAction: "uniquify",
       saveAs: false
     });
 
     if (typeof downloadId === "number") {
+      await waitForDownload(downloadId);
       downloadResults.push(downloadId);
     }
   }
 
   return downloadResults;
+}
+
+function waitForDownload(id: number) {
+  return new Promise<void>((resolve, reject) => {
+    const finish = (state?: string, error?: string) => {
+      if (state !== "complete" && state !== "interrupted") return;
+      chrome.downloads.onChanged.removeListener(listener);
+      if (state === "complete") resolve();
+      else reject(new Error(`图片保存失败：${error ?? "下载被中断"}`));
+    };
+    const listener = (change: chrome.downloads.DownloadDelta) => {
+      if (change.id === id) finish(change.state?.current, change.error?.current);
+    };
+    chrome.downloads.onChanged.addListener(listener);
+    void chrome.downloads.search({ id }).then(items => finish(items[0]?.state, items[0]?.error)).catch(error => {
+      chrome.downloads.onChanged.removeListener(listener);
+      reject(error);
+    });
+  });
 }

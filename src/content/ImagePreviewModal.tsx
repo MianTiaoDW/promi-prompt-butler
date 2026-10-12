@@ -47,9 +47,15 @@ export function ImagePreviewModal(props: {
     if (!image || isDownloading) return;
     setIsDownloading(true);
     try {
+      const url = image.url.startsWith("blob:") ? await fetch(image.url).then(response => response.blob()).then(blob => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("读取图片失败"));
+        reader.readAsDataURL(blob);
+      })) : image.url;
       await sendRuntimeMessage<number[]>({
         type: "image:download",
-        payload: { urls: [image.url] }
+        payload: { urls: [url] }
       });
       showToast("已开始下载~");
     } catch {
@@ -91,12 +97,12 @@ export function ImagePreviewModal(props: {
               alt={image.alt ?? "图片大图预览"}
               className="max-h-[85vh] max-w-[85vw] rounded-[1.35rem] object-contain shadow-[0_28px_80px_rgba(0,0,0,0.55)]"
             />
-            <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3">
+            <div className="image-preview-actions absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3">
               <button
                 type="button"
                 onClick={() => void copyImage()}
                 disabled={isCopying}
-                className="ghost-button border-white/20 bg-black/60 px-5 py-3 text-sm text-white/85 backdrop-blur hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-55"
+                className="ghost-button image-preview-copy border-white/20 bg-black/60 px-5 py-3 text-sm backdrop-blur hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-55"
               >
                 <Copy className="h-4 w-4" />
                 复制
@@ -114,7 +120,7 @@ export function ImagePreviewModal(props: {
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-4 top-4 rounded-full border border-white/20 bg-black/60 p-2 text-white/70 backdrop-blur transition hover:border-accent/35 hover:text-white"
+              className="image-preview-close absolute right-4 top-4 rounded-full border border-white/20 bg-black/60 p-2 backdrop-blur transition hover:border-accent/35"
               aria-label="关闭图片预览"
               title="关闭"
             >

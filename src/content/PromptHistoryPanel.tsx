@@ -30,7 +30,7 @@ export function PromptHistoryPanel(props: {
           {props.entries.length === 0 ? (
             <p className="prompt-history-empty">生成图片后，会在这里保存可恢复的创作环境。</p>
           ) : <div className="prompt-history-list">
-            {props.entries.slice(0, 20).map((entry) => (
+            {props.entries.map((entry) => (
               <article key={entry.id}>
                 <button
                   type="button"

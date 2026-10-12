@@ -4,7 +4,7 @@
 
 1. 先阅读 `docs/CODEX_HANDOFF.md`；它记录当前分支、已确认决策、未完成事项和跨设备接续命令。
 2. 执行 `git status --short --branch` 和 `git log -5 --oneline --decorate`，以最新远程状态为准，不得用旧提交覆盖当前正式界面。
-3. 2026-10-12 已将最新正式插件同步到 `main`；`codex/optical-fidelity-lab` 本次同步时与它一致。跨设备可从最新 `main` 接续。
+3. 最新正式插件以 `main` 为准，跨设备从最新 `main` 接续。
 
 ## 产品与技术
 
@@ -18,18 +18,15 @@
 ## 修改边界
 
 - 组件使用函数式组件和 hooks；不引入新的状态库。
-- 正式插件功能图标沿用 `lucide-react`。隔离 Design Lab 可按其 README 使用独立依赖。
+- 正式插件功能图标沿用 `lucide-react`。
 - 只修改任务要求涉及的文件，不顺手重构相邻代码。
 - 不新增未经确认的账号、云同步、容量或在线状态等产品能力。
-- `design-lab/` 与 `ui-pattern-atlas/` 均为隔离研究，除非用户明确批准，不得自动接入 Manifest、Content Script、Background、存储或 API。
-- 生成结果保持临时；只有用户明确保存时才持久化 Prompt 或示例图。
+- 生成图片自动保存到本地创作历史，插件内保留最新 50 条；下载图片另存到下载目录。
 - 不提交 `.env*`、API Key、`.claude/`、`.firecrawl/`、`node_modules/`、`dist/` 或临时日志。
 
 ## 视觉规则
 
 - 正式插件当前本地视觉是功能基准，不能依据旧 README 或旧截图回退。
-- Apple Optical 与 Hero Icon 的最新方向以 `docs/CODEX_HANDOFF.md` 和各 Lab README 为准。
-- 当前用户认可的 Apple 竖屏方向位于 `design-lab/apple-prompt-studio/`；它仍是 Mock 原型，未经明确批准不得接入正式插件。
 - 普通正文优先可读性；光学材质只用于明确的高层控制和视觉实验，不全局玻璃化。
 
 ## 验证
@@ -42,4 +39,3 @@ npm run build
 
 - 静态检查和构建通过不等于浏览器验收通过。
 - 修改正式插件交互后，仍需在 Chrome/Edge 加载 `dist`，实际走完受影响流程。
-- 修改 Lab 后按对应 README 的独立命令构建或预览，并保留必要截图。

@@ -1,3 +1,4 @@
+import { CollectionFolder } from "./CollectionFolder";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { createPortal } from "react-dom";
@@ -7,11 +8,9 @@ import {
   Download,
   Upload,
   LoaderCircle,
-  PencilLine,
   Plus,
   Trash2,
-  X,
-  GripVertical
+  X
 } from "lucide-react";
 
 import { useChromeStorage } from "../hooks/useChromeStorage";
@@ -36,7 +35,7 @@ import type {
 } from "../types/prompt";
 import type { PromptFolder } from "../types/prompt";
 import type { ExtensionSettings } from "../types/settings";
-import { formatPromptGroup, getPromptGroup, isCollectedPrompt } from "../lib/prompt-group";
+import { formatPromptGroup, getPromptGroup } from "../lib/prompt-group";
 import { belongsToFolder, collectPromptToFolder, moveOrderedId, reorderPromptRecords, sortPromptRecords } from "../lib/prompt-organization";
 import { PromptFolderPicker } from "./PromptFolderPicker";
 import { PromptCard } from "./PromptCard";
@@ -64,11 +63,11 @@ export function FavoritesStudio(props: {
   const foldersStorage = useChromeStorage<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [panelMessage, setPanelMessage] = useState("");
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [folderNameDraft, setFolderNameDraft] = useState("");
+  const [hoveredFolderId, setHoveredFolderId] = useState<string | null>(null);
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [editingGroupRecord, setEditingGroupRecord] = useState<SavedPromptRecord | null>(null);
@@ -98,6 +97,8 @@ export function FavoritesStudio(props: {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const sortingRef = useRef(false);
   const droppingRef = useRef(false);
+  const cancelFolderRename = useRef(false);
+  const folderDragEndedAt = useRef(0);
   const dragOrderRef = useRef<string[]>([]);
   const finishDrag = () => {
     if (droppingRef.current) return;
@@ -150,7 +151,7 @@ export function FavoritesStudio(props: {
       showToast("提示词已复制");
       void markRecordUsed(record);
     } catch {
-      setPanelMessage("当前页面不允许直接写入剪贴板，请手动复制。");
+      showToast("当前页面不允许直接写入剪贴板，请手动复制。");
     }
   };
 
@@ -237,9 +238,9 @@ export function FavoritesStudio(props: {
       setSelectedFolderId(null);
       setIsCreatingFolder(false);
       setFolderNameDraft("");
-      setPanelMessage(`已新建收藏夹：${folder.name}`);
+      showToast(`已新建收藏夹：${folder.name}`);
     } catch (error) {
-      setPanelMessage(error instanceof Error ? error.message : "新建文件夹失败。");
+      showToast(error instanceof Error ? error.message : "新建文件夹失败。");
     }
   };
 
@@ -248,7 +249,7 @@ export function FavoritesStudio(props: {
       const renamedFolder = await renamePromptFolder(folder.id, folderNameDraft);
 
       if (!renamedFolder) {
-        setPanelMessage("重命名失败，未找到文件夹。");
+        showToast("重命名失败，未找到文件夹。");
         return;
       }
 
@@ -257,9 +258,9 @@ export function FavoritesStudio(props: {
       );
       setRenamingFolderId(null);
       setFolderNameDraft("");
-      setPanelMessage(`文件夹已重命名为：${renamedFolder.name}`);
+      showToast(`文件夹已重命名为：${renamedFolder.name}`);
     } catch (error) {
-      setPanelMessage(error instanceof Error ? error.message : "重命名失败。");
+      showToast(error instanceof Error ? error.message : "重命名失败。");
     }
   };
 
@@ -267,7 +268,7 @@ export function FavoritesStudio(props: {
     const deleted = await deletePromptFolder(folder.id);
 
     if (!deleted) {
-      setPanelMessage("删除失败，未找到文件夹。");
+      showToast("删除失败，未找到文件夹。");
       return;
     }
 
@@ -275,7 +276,6 @@ export function FavoritesStudio(props: {
     setSelectedFolderId((current) => (current === folder.id ? null : current));
     setRenamingFolderId(null);
     setFolderNameDraft("");
-    setPanelMessage("");
     showToast(`已删除收藏夹：${folder.name}`);
   };
 
@@ -340,7 +340,7 @@ export function FavoritesStudio(props: {
     resetPromptDraft();
     setPromptTitleDraft("");
     setIsCreatingPrompt(false);
-    setPanelMessage(`已添加提示词到“${activeFolder?.name || activeCategory}”。`);
+    showToast(`已添加提示词到“${activeFolder?.name || activeCategory}”。`);
   };
 
   const editPromptGroup = (record: SavedPromptRecord) => {
@@ -365,7 +365,6 @@ export function FavoritesStudio(props: {
   const handleDeletePrompt = async (record: SavedPromptRecord) => {
     await deletePromptExampleImages(record.id);
     await setFavorites((current) => current.filter((item) => item.id !== record.id));
-    setPanelMessage("提示词已删除。");
     showToast("提示词已删除");
   };
 
@@ -402,12 +401,12 @@ export function FavoritesStudio(props: {
 
   const optimizePrompt = async (record: SavedPromptRecord, direction?: string) => {
     if (!isServiceReady) {
-      setPanelMessage("服务未就绪，请先完成配置并测试连接。");
+      showToast("服务未就绪，请先完成配置并测试连接。");
       return;
     }
 
     setBusyId(record.id);
-    setPanelMessage("正在调用模型优化该条提示词...");
+    showToast("正在调用模型优化该条提示词...");
 
     try {
       const result = await sendRuntimeMessage<PromptOptimizationResult>({
@@ -420,7 +419,7 @@ export function FavoritesStudio(props: {
       });
 
       if (!result.ok) {
-        setPanelMessage(`优化失败：${result.message}`);
+        showToast(`优化失败：${result.message}`);
         return;
       }
 
@@ -445,7 +444,7 @@ export function FavoritesStudio(props: {
       });
 
       if (!updatedRecord) {
-        setPanelMessage("优化完成，但本地提示词更新失败。");
+        showToast("优化完成，但本地提示词更新失败。");
         return;
       }
 
@@ -454,10 +453,9 @@ export function FavoritesStudio(props: {
       );
       setPreviewRecord((current) => current?.id === record.id ? updatedRecord : current);
       setOptimizationRecord(null);
-      setPanelMessage(`AI 优化完成，当前使用模型：${result.model}`);
       showToast(`已生成 ${updatedRecord.version} 版本`);
     } catch (error) {
-      setPanelMessage(
+      showToast(
         error instanceof Error ? `优化失败：${error.message}` : "优化失败。"
       );
     } finally {
@@ -561,7 +559,7 @@ export function FavoritesStudio(props: {
         {assetFilter === "all" ? (
           <div className="flex flex-wrap items-center justify-end gap-2">
             {!activeFolder ? <><button type="button" className="icon-button" disabled={isBackupBusy} onClick={handleImport} title="导入 ZIP 或 JSON" aria-label="导入提示词"><Upload className="h-4 w-4" /></button><button type="button" className="icon-button" disabled={isBackupBusy} onClick={() => void handleExport()} title="导出全部提示词和示例图为 ZIP" aria-label="导出提示词 ZIP">{isBackupBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}</button></> : null}
-            <button type="button" className="ghost-button px-3 py-2 text-sm" disabled={isBackupBusy} onClick={() => { setIsCreatingPrompt(true); resetPromptDraft(); setPromptTitleDraft(""); }}><Plus className="h-4 w-4" />添加提示词</button>
+            <button type="button" className="gradient-button prompt-add-button px-3 py-2 text-sm" disabled={isBackupBusy} onClick={() => { setIsCreatingPrompt(true); resetPromptDraft(); setPromptTitleDraft(""); }}><Plus className="h-4 w-4" />添加提示词</button>
           </div>
         ) : null}
       </div>
@@ -643,7 +641,7 @@ export function FavoritesStudio(props: {
     return <div ref={libraryRef} className="prompt-asset-library">
       <div className="flex items-center gap-3"><button type="button" className="ghost-button px-3 py-2 text-xs" onClick={() => { setSelectedFolderId(null); setIsCreatingPrompt(false); resetPromptDraft(); }}><ArrowLeft className="h-4 w-4" />返回收藏夹</button></div>
       {renderAssetSection(activeFolder.name, sortedFavorites, "这个收藏夹还没有提示词")}
-      {assetFilter !== "all" ? <button type="button" className="ghost-button px-3 py-2 text-sm" onClick={() => { resetPromptDraft(); setPromptTitleDraft(""); setIsCreatingPrompt(true); }}><Plus className="h-4 w-4" />添加提示词</button> : null}
+      {assetFilter !== "all" ? <button type="button" className="gradient-button prompt-add-button px-3 py-2 text-sm" onClick={() => { resetPromptDraft(); setPromptTitleDraft(""); setIsCreatingPrompt(true); }}><Plus className="h-4 w-4" />添加提示词</button> : null}
       {promptEditor}
       {folderPickerDialog}
       {promptPreviewDialog}
@@ -668,17 +666,28 @@ export function FavoritesStudio(props: {
               <button type="button" onClick={() => { setIsCreatingFolder(false); setFolderNameDraft(""); }}><X className="h-4 w-4" /></button>
             </div>
           ) : null}
-          <div className="prompt-folder-grid">
+          <div className="prompt-folder-grid folder-float-grid">
             {previewOrder(scopedFolders, draggingFolderId).map((folder, index) => {
-              const folderCount = favorites.filter((record) => belongsToFolder(record, folder)).length;
+              const folderRecords = sortPromptRecords(favorites.filter((record) => belongsToFolder(record, folder)));
               const isRenaming = renamingFolderId === folder.id;
               return (
                 <motion.article key={folder.id}
+                  draggable={!isRenaming}
+                  onDragStartCapture={(event) => {
+                    if ((event.target as HTMLElement).closest('.collection-folder-actions')) { event.preventDefault(); return; }
+                    event.stopPropagation();
+                    event.dataTransfer.setData("application/x-prompt-butler-folder", folder.id);
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setDragImage(event.currentTarget, 24, 24);
+                    dragOrderRef.current = scopedFolders.map((item) => item.id);
+                    setDraggingFolderId(folder.id);
+                  }}
+                  onDragEndCapture={() => { folderDragEndedAt.current = Date.now(); finishDrag(); }}
                   layout={reduceMotion ? false : "position"}
                   initial={false}
                   animate={{ scale: !reduceMotion && draggingFolderId === folder.id ? 1.045 : 1, rotate: !reduceMotion && draggingFolderId === folder.id ? -1.5 : 0 }}
                   transition={{ type: "spring", stiffness: 420, damping: 23, mass: 0.8 }}
-                  className={`${draggingFolderId === folder.id ? "is-dragging" : ""} ${dropTargetId && draggingFolderId === folder.id ? "is-drop-target" : ""} ${draggingFolderId && draggingFolderId !== folder.id && scopedFolders[index]?.id !== folder.id ? "is-sort-preview" : ""}`}
+                  className={`${hoveredFolderId === folder.id && !draggingFolderId ? "is-hovered" : ""} ${draggingFolderId === folder.id ? "is-dragging" : ""} ${dropTargetId && draggingFolderId === folder.id ? "is-drop-target" : ""} ${draggingFolderId && draggingFolderId !== folder.id && scopedFolders[index]?.id !== folder.id ? "is-sort-preview" : ""}`}
                   onDragOver={(event) => {
                     if (!event.dataTransfer.types.includes("application/x-prompt-butler-folder")) return;
                     event.preventDefault();
@@ -692,30 +701,18 @@ export function FavoritesStudio(props: {
                     event.stopPropagation();
                     void commitDrop(() => moveFolder(sourceId, dropTargetId ?? folder.id));
                   }}>
-                  {isRenaming ? (
-                    <div data-enter-confirm className="prompt-folder-create-row"><input className="form-field" value={folderNameDraft} onChange={(event) => setFolderNameDraft(event.target.value)} autoFocus /><button type="button" data-enter-submit onClick={() => void handleRenameFolder(folder)}><Check className="h-4 w-4" /></button><button type="button" onClick={() => { setRenamingFolderId(null); setFolderNameDraft(""); }}><X className="h-4 w-4" /></button></div>
-                  ) : (
-                    <><button type="button" className="prompt-folder-open" onClick={() => setSelectedFolderId(folder.id)}><strong>{folder.name}</strong><span>{folderCount} 条</span></button><div>
-                      <button type="button" className="prompt-drag-handle" draggable aria-label="调整收藏夹顺序" title="拖动调整顺序，也可用方向键调整"
-                        onDragStart={(event) => {
-                          event.stopPropagation();
-                          event.dataTransfer.setData("application/x-prompt-butler-folder", folder.id);
-                          event.dataTransfer.effectAllowed = "move";
-                          const card = event.currentTarget.closest("article");
-                          if (card) event.dataTransfer.setDragImage(card, 24, 24);
-                          dragOrderRef.current = scopedFolders.map((item) => item.id);
-                          setDraggingFolderId(folder.id);
-                        }}
-                        onDragEnd={finishDrag}
-                        onKeyDown={(event) => {
-                          if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
-                          event.preventDefault();
-                          const index = scopedFolders.findIndex((item) => item.id === folder.id);
-                          const next = scopedFolders[index + (event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1)];
-                          if (next) void moveFolder(folder.id, next.id);
-                        }}><GripVertical className="h-3.5 w-3.5" /></button>
-                      <button type="button" onClick={() => { setRenamingFolderId(folder.id); setFolderNameDraft(folder.name); }} title="重命名" aria-label={`重命名收藏夹 ${folder.name}`}><PencilLine className="h-3.5 w-3.5" /></button><button type="button" onClick={() => void handleDeleteFolder(folder)} title="删除" aria-label={`删除收藏夹 ${folder.name}`}><Trash2 className="h-3.5 w-3.5" /></button></div></>
-                  )}
+                  <CollectionFolder
+                    name={folder.name} records={folderRecords} disabled={Boolean(draggingFolderId) || isRenaming}
+                    onOpen={() => { if (!isRenaming && !draggingFolderId && Date.now() - folderDragEndedAt.current > 250) setSelectedFolderId(folder.id); }}
+                    onRename={() => { cancelFolderRename.current = false; setRenamingFolderId(folder.id); setFolderNameDraft(folder.name); }}
+                    onHover={(open) => setHoveredFolderId((current) => open ? folder.id : current === folder.id ? null : current)}
+                    labelEditor={isRenaming ? <input className="folder-title-input" value={folderNameDraft} aria-label="收藏夹名称" autoFocus onFocus={(event) => event.currentTarget.select()} onChange={(event) => setFolderNameDraft(event.target.value)} onBlur={() => { if (!cancelFolderRename.current) void handleRenameFolder(folder); }} onKeyDown={(event) => {
+                      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+                      if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); event.currentTarget.blur(); }
+                      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancelFolderRename.current = true; setRenamingFolderId(null); setFolderNameDraft(""); }
+                    }} /> : undefined}
+                  />
+                  {!isRenaming ? <div className="collection-folder-actions"><button type="button" onClick={() => void handleDeleteFolder(folder)} title="删除" aria-label={`删除收藏夹 ${folder.name}`}><Trash2 className="h-3.5 w-3.5" /></button></div> : null}
                 </motion.article>
               );
             })}
@@ -730,7 +727,6 @@ export function FavoritesStudio(props: {
 
       {promptEditor}
       {folderPickerDialog}
-      {panelMessage ? <p className="library-status-message">{panelMessage}</p> : null}
 
       {promptPreviewDialog}
       <PromptOptimizePanel

@@ -41,6 +41,7 @@ export interface ExampleImageUsage {
 }
 
 export interface ImageGenerationSuccess {
+  historySaveError?: string;
   ok: true;
   provider: ProviderId;
   model: string;

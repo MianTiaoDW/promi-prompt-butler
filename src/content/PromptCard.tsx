@@ -1,9 +1,11 @@
+import { ImagePreviewModal } from "./ImagePreviewModal";
+import { FavoriteButton } from "./FavoriteButton";
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import type { DragEventHandler, KeyboardEventHandler } from "react";
 import { dataUrlToObjectUrl, getExampleImagePayload } from "../lib/example-images";
 import { getPromptGroup, isCollectedPrompt } from "../lib/prompt-group";
-import { Check, Copy, FolderPlus, GripVertical, Heart, Images, LoaderCircle, Sparkles, Trash2 } from "lucide-react";
+import { Check, Copy, Eye, FolderPlus, GripVertical, Images, LoaderCircle, Sparkles, Trash2 } from "lucide-react";
 
 import type { SavedPromptRecord } from "../types/prompt";
 
@@ -52,6 +54,7 @@ export function PromptCard({
   const collected = isCollectedPrompt(record);
   const group = getPromptGroup(record);
   const [exampleUrl, setExampleUrl] = useState<string | null>(null);
+  const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
   const firstImageId = record.exampleImageIds?.[0];
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +72,7 @@ export function PromptCard({
   const linkedImageCount = record.exampleImageIds?.length ?? 0;
 
   return (
+    <>
     <motion.article
       layout={reduceMotion ? false : "position"}
       initial={false}
@@ -81,7 +85,7 @@ export function PromptCard({
         <h3>{title}</h3>
         <p>{collected ? group.notes || group.steps[0]?.content : record.content}</p>
       </button>
-      {exampleUrl ? <button type="button" className="w-[32%] max-w-[160px] shrink-0 self-stretch overflow-hidden rounded-xl" onClick={onOpen} aria-label="查看提示词示例图"><img src={exampleUrl} alt={`${title}的示例图`} className="h-full min-h-[100px] w-full object-cover" loading="lazy" /></button> : null}
+      {exampleUrl ? <button type="button" className="prompt-card-image-preview w-[32%] max-w-[160px] shrink-0 self-stretch overflow-hidden rounded-xl" onClick={() => setIsImagePreviewOpen(true)} aria-label="查看提示词示例图"><img src={exampleUrl} alt={`${title}的示例图`} className="h-full min-h-[100px] w-full object-cover" loading="lazy" /><span className="prompt-card-image-eye"><Eye className="h-5 w-5" /></span></button> : null}
       </div>
 
       {!collected ? <div className={`prompt-card-case-count ${linkedImageCount > 0 ? "has-cases" : ""}`}>
@@ -103,15 +107,7 @@ export function PromptCard({
             {isOptimizing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           </button>
           </> : null}
-          <button
-            type="button"
-            onClick={onToggleFavorite}
-            title={isFavorite ? "取消收藏" : "收藏"}
-            aria-label={isFavorite ? "取消收藏" : "收藏"}
-            className={isFavorite ? "prompt-card-action-favorite" : ""}
-          >
-            <Heart className="h-4 w-4" fill={isFavorite ? "currentColor" : "none"} />
-          </button>
+          <FavoriteButton active={isFavorite} onToggle={onToggleFavorite} />
           <button type="button" onClick={onCollectToFolder} title="收藏到文件夹" aria-label="收藏到文件夹"><FolderPlus className="h-4 w-4" /></button>
           <button type="button" onClick={onDelete} title="删除 Prompt" aria-label="删除 Prompt" className="prompt-card-action-delete">
             <Trash2 className="h-4 w-4" />
@@ -119,5 +115,7 @@ export function PromptCard({
         </div>
       </footer>
     </motion.article>
+    <ImagePreviewModal image={isImagePreviewOpen && exampleUrl ? { id: firstImageId, url: exampleUrl, alt: `${title}的示例图` } : null} onClose={() => setIsImagePreviewOpen(false)} />
+    </>
   );
 }

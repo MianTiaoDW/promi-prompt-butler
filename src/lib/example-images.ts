@@ -134,10 +134,6 @@ export function migrateLegacyPromptImages() {
 }
 
 async function runLegacyPromptImageMigration() {
-  await Promise.all([
-    storageSet("prompt-butler-image-history", []),
-    storageSet("prompt-butler-image-task", null)
-  ]);
   const records = await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
   let changed = false;
   const migrated: SavedPromptRecord[] = [];

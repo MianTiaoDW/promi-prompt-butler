@@ -1,5 +1,6 @@
 import { storageGet, storageSet } from "./storage";
-import { RETIRED_SEED_IDS } from "./seed-prompts";
+import { DEFAULT_PROMPT_SEEDS, RETIRED_SEED_IDS } from "./seed-prompts";
+import { formatPromptGroup } from "./prompt-group";
 import type {
   PromptFolder,
   PromptOutputFormat,
@@ -28,6 +29,8 @@ export const CORE_TABS: readonly string[] = ["角色设定", "图像生成", "�
 export const CUSTOM_TABS_KEY = "prompt-butler-custom-tabs";
 const DELETED_TABS_KEY = "prompt-butler-deleted-tabs";
 const TAB_ORDER_KEY = "prompt-butler-tab-order";
+const DEFAULT_PROMPTS_VERSION_KEY = "prompt-butler-default-prompts-version";
+const DEFAULT_PROMPTS_VERSION = 1;
 
 export async function getCustomTabs(): Promise<string[]> {
   return storageGet<string[]>(CUSTOM_TABS_KEY, []);
@@ -404,6 +407,48 @@ export async function removeRetiredSeedPrompts() {
   );
   if (remaining.length !== records.length) await storageSet(PROMPT_STORAGE_KEYS.favorites, remaining, records);
   if (remainingFolders.length !== folders.length) await storageSet(PROMPT_STORAGE_KEYS.folders, remainingFolders, folders);
+}
+
+export async function ensureDefaultPrompts() {
+  const seededVersion = await storageGet(DEFAULT_PROMPTS_VERSION_KEY, 0);
+  if (seededVersion >= DEFAULT_PROMPTS_VERSION) return [];
+
+  const existing = await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
+  const existingIds = new Set(existing.map((record) => record.id));
+  const existingTitles = new Set(existing.map((record) => record.title));
+  const firstOrder = existing.reduce((max, record) => Math.max(max, record.order ?? -1), -1) + 1;
+  const createdAt = "2026-10-12T00:00:00.000Z";
+  const additions = DEFAULT_PROMPT_SEEDS
+    .filter((seed) => !existingIds.has(seed.id) && !existingTitles.has(seed.title))
+    .map<SavedPromptRecord>((seed, index) => ({
+      id: seed.id,
+      title: seed.title,
+      createdAt,
+      provider: "chatgpt",
+      model: "",
+      format: "cnPrompt",
+      content: formatPromptGroup(seed.group),
+      group: seed.group,
+      category: "收藏",
+      tags: [],
+      order: firstOrder + index,
+      isFavorite: false,
+      source: "system-template",
+      versions: [],
+      usedCount: 0,
+      linkedImages: [],
+      exampleImageIds: [],
+      imageStorageVersion: 2,
+      version: "1.0",
+      usageCount: 0,
+      lastUsed: ""
+    }));
+
+  if (additions.length > 0) {
+    await storageSet(PROMPT_STORAGE_KEYS.favorites, [...existing, ...additions], existing);
+  }
+  await storageSet(DEFAULT_PROMPTS_VERSION_KEY, DEFAULT_PROMPTS_VERSION);
+  return additions;
 }
 
 /** 清理之前版本误创建的错误标签 */

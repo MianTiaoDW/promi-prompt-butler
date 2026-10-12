@@ -26,7 +26,3 @@ export async function getImageWorkspaceState() {
     defaultImageWorkspaceState
   );
 }
-
-export async function clearImageHistory() {
-  await storageSet(IMAGE_STORAGE_KEYS.history, []);
-}

@@ -65,7 +65,7 @@ function AppWindow() {
   }, []);
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-canvas p-3 text-white">
+    <main className="app-window h-screen w-screen overflow-hidden text-primary">
       <OverlayApp
         embedded
         appWindow

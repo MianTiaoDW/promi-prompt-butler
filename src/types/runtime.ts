@@ -75,6 +75,7 @@ export interface GenerateImagesMessage {
   payload: {
     settings: ExtensionSettings;
     input: ImageGenerationInput;
+    source?: import("./image").ImageWorkspaceState["source"];
   };
 }
 
@@ -143,6 +144,8 @@ export interface CleanupExampleImagesMessage {
 }
 
 export type RuntimeRequestMessage =
+  | { type: "image-history:read" }
+  | { type: "image-history:clear" }
   | { type: "storage:merge-collection"; payload: import("../lib/collection-storage").CollectionChange }
   | TestProviderConnectionMessage
   | DetectProviderModelsMessage

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -7,6 +7,7 @@ import {
   Eraser,
   ImagePlus,
   LoaderCircle,
+  Plus,
   Sparkles,
   X
 } from "lucide-react";
@@ -84,6 +85,21 @@ export function RolePromptStudio(props: {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSkillPickerOpen, setIsSkillPickerOpen] = useState(false);
   const [referenceImages, setReferenceImages] = useState<Array<{ dataUrl: string; name: string }>>([]);
+  const [isReferenceDragOver, setIsReferenceDragOver] = useState(false);
+  const referenceDragDepth = useRef(0);
+  const addReferenceImages = async (files: File[]) => {
+    const images = files.filter(file => file.type.startsWith("image/"));
+    if (!images.length) { showToast("请拖入图片文件", "error"); return; }
+    const remaining = 8 - referenceImages.length;
+    if (remaining <= 0) { showToast("最多添加 8 张参考图", "error"); return; }
+    try {
+      const next = await Promise.all(images.slice(0, remaining).map(async file => ({
+        dataUrl: await convertFileToDataUrl(file), name: file.name
+      })));
+      setReferenceImages(previous => [...previous, ...next].slice(0, 8));
+      setPanelMessage(`已附加 ${next.length} 张参考图`);
+    } catch (error) { showToast(error instanceof Error ? error.message : "读取参考图失败", "error"); }
+  };
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationResult, setGenerationResult] = useState<PromptGenerationResult | null>(null);
   const [panelMessage, setPanelMessage] = useState("填写角色设定和需求后点击生成");
@@ -348,7 +364,28 @@ export function RolePromptStudio(props: {
         <p>描述你的想法，让 AI 帮你生成专业提示词。</p>
       </header>
 
-      <section className="creator-input-surface">
+      <section className={`creator-input-surface creator-reference-dropzone${isReferenceDragOver ? " is-drag-over" : ""}`}
+        onDragEnter={event => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault(); event.stopPropagation();
+          referenceDragDepth.current += 1; setIsReferenceDragOver(true);
+        }}
+        onDragOver={event => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={event => {
+          event.preventDefault(); event.stopPropagation();
+          referenceDragDepth.current = Math.max(0, referenceDragDepth.current - 1);
+          if (!referenceDragDepth.current) setIsReferenceDragOver(false);
+        }}
+        onDrop={event => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault(); event.stopPropagation();
+          referenceDragDepth.current = 0; setIsReferenceDragOver(false);
+          void addReferenceImages(Array.from(event.dataTransfer.files));
+        }}>
+        {isReferenceDragOver ? <div className="creator-reference-drop-overlay" aria-hidden="true"><Plus /><strong>松开添加参考图</strong><span>最多支持 8 张图片</span></div> : null}
         <div className="creator-input-heading">
           <div>
             <div className="section-label">创意描述</div>
@@ -387,19 +424,8 @@ export function RolePromptStudio(props: {
                   multiple
                   className="hidden"
                   onChange={(event) => {
-                    const files = Array.from(event.target.files ?? []);
-                    if (files.length === 0) return;
-                    const remaining = 8 - referenceImages.length;
-                    void Promise.all(
-                      files.slice(0, remaining).map((file) =>
-                        convertFileToDataUrl(file).then((dataUrl) => ({ dataUrl, name: file.name }))
-                      )
-                    ).then((newImages) => {
-                      setReferenceImages((previous) => [...previous, ...newImages]);
-                      setPanelMessage(`已附加 ${newImages.length} 张参考图`);
-                    }).catch((error: unknown) => {
-                      setPanelMessage(error instanceof Error ? error.message : "读取参考图失败。");
-                    });
+                    void addReferenceImages(Array.from(event.target.files ?? []));
+                    event.target.value = "";
                   }}
                 />
               </label>
