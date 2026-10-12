@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { LoaderCircle, Sparkles, X } from "lucide-react";
+import { LoaderCircle, Sparkles, X } from "../components/PromiIcons";
 import type { SavedPromptRecord } from "../types/prompt";
 import { useModalFocus } from "../hooks/useModalFocus";
 import { MOTION } from "../lib/motion";

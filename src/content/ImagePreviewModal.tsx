@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Copy, Download, X } from "lucide-react";
+import { Close, Copy, Download } from "../components/PromiIcons";
 
 import { useModalFocus } from "../hooks/useModalFocus";
 import { MOTION } from "../lib/motion";
@@ -120,11 +120,11 @@ export function ImagePreviewModal(props: {
             <button
               type="button"
               onClick={onClose}
-              className="image-preview-close absolute right-4 top-4 rounded-full border border-white/20 bg-black/60 p-2 backdrop-blur transition hover:border-accent/35"
+              className="image-preview-close absolute right-4 top-4"
               aria-label="关闭图片预览"
               title="关闭"
             >
-              <X className="h-5 w-5" />
+              <Close className="h-6 w-6" />
             </button>
           </motion.div>
         </motion.div>

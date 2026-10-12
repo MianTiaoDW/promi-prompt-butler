@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Copy, PencilLine, Trash2, X } from "lucide-react";
+import { Check, Copy, PencilLine, Trash2, X } from "../components/PromiIcons";
 import type { PromptGroup } from "../types/prompt";
 import { showToast } from "../lib/toast";
 

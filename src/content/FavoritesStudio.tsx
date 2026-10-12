@@ -11,7 +11,7 @@ import {
   Plus,
   Trash2,
   X
-} from "lucide-react";
+} from "../components/PromiIcons";
 
 import { useChromeStorage } from "../hooks/useChromeStorage";
 import { saveImageWorkspace } from "../lib/image-library";
@@ -36,7 +36,7 @@ import type {
 import type { PromptFolder } from "../types/prompt";
 import type { ExtensionSettings } from "../types/settings";
 import { formatPromptGroup, getPromptGroup } from "../lib/prompt-group";
-import { belongsToFolder, collectPromptToFolder, moveOrderedId, reorderPromptRecords, sortPromptRecords } from "../lib/prompt-organization";
+import { belongsToFolder, collectPromptToFolder, moveOrderedId, movePromptToTop, reorderPromptRecords, sortPromptRecords } from "../lib/prompt-organization";
 import { PromptFolderPicker } from "./PromptFolderPicker";
 import { PromptCard } from "./PromptCard";
 import { PromptPreviewModal } from "./PromptPreviewModal";
@@ -129,6 +129,16 @@ export function FavoritesStudio(props: {
       await setFavorites(next);
       showToast("提示词顺序已保存");
     } catch { showToast("保存顺序失败，请重试", "error"); }
+    finally { sortingRef.current = false; }
+  };
+
+  const handleMoveToTop = async (promptId: string) => {
+    if (sortingRef.current) return;
+    sortingRef.current = true;
+    try {
+      await movePromptToTop(promptId);
+      showToast("提示词已移到最前面");
+    } catch { showToast("置顶失败，请重试", "error"); }
     finally { sortingRef.current = false; }
   };
 
@@ -581,6 +591,7 @@ export function FavoritesStudio(props: {
               onOptimize={() => setOptimizationRecord(record)}
               onDelete={() => void handleDeletePrompt(record)}
               onCollectToFolder={() => setFolderPickerRecord(record)}
+              onMoveToTop={() => void handleMoveToTop(record.id)}
               isDragging={draggingPromptId === record.id}
               isDropTarget={Boolean(dropTargetId && draggingPromptId === record.id)}
               isPreview={Boolean(draggingPromptId && draggingPromptId !== record.id && records[index]?.id !== record.id)}

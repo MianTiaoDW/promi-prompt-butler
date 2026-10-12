@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import type { DragEventHandler, KeyboardEventHandler } from "react";
 import { dataUrlToObjectUrl, getExampleImagePayload } from "../lib/example-images";
 import { getPromptGroup, isCollectedPrompt } from "../lib/prompt-group";
-import { Check, Copy, Eye, FolderPlus, GripVertical, Images, LoaderCircle, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUpToLine, Check, Copy, Eye, FolderPlus, GripVertical, Images, LoaderCircle, Sparkles, Trash2 } from "../components/PromiIcons";
 
 import type { SavedPromptRecord } from "../types/prompt";
 
@@ -20,6 +20,7 @@ interface PromptCardProps {
   onOptimize: () => void;
   onDelete: () => void;
   onCollectToFolder: () => void;
+  onMoveToTop: () => void;
   onDragStart: DragEventHandler<HTMLElement>;
   onDragEnd: DragEventHandler<HTMLElement>;
   onDragOver: DragEventHandler<HTMLElement>;
@@ -41,6 +42,7 @@ export function PromptCard({
   onOptimize,
   onDelete,
   onCollectToFolder,
+  onMoveToTop,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -98,6 +100,7 @@ export function PromptCard({
           {record.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}
         </div> : <span className="whitespace-nowrap text-xs text-white/45">{group.steps.length} 步</span>}
         <div className="prompt-card-actions">
+          <button type="button" onClick={onMoveToTop} title="一键置顶" aria-label="一键置顶"><ArrowUpToLine className="h-4 w-4" /></button>
           <button type="button" className="prompt-drag-handle" draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onKeyDown={onReorderKey} title="拖动调整顺序，也可用方向键调整" aria-label="调整提示词顺序"><GripVertical className="h-4 w-4" /></button>
           <button type="button" onClick={onCopy} title="复制提示词" aria-label="复制提示词">
             {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}

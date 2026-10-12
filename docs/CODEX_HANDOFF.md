@@ -1,6 +1,6 @@
 # Codex 跨设备交接（唯一入口）
 
-更新日期：2026-10-12
+更新日期：2026-10-13
 
 最新正式代码：`main`
 
@@ -8,11 +8,22 @@
 
 ## 先说结论
 
-- GitHub 的 `main` 已同步到 2026-10-12 最新正式插件，可直接克隆／拉取并构建。
+- 最新正式插件位于 `main`，包含 2026-10-13 本轮确认的完整改动，可直接克隆／拉取并构建。
 - 以 `main` 上的正式 `src/` 源码为准。
 - Codex 聊天记录和本机安装的 Skill 不由 Git 同步。本文件把继续工作所需的决策和边界写入仓库，公司 Codex 不应依赖旧聊天猜测。
 
-## 2026-10-12 最新正式插件
+## 2026-10-13 最新正式插件
+
+- 正式名称为“Promi 提示词管家”，版本 `1.2.0`；当前为蓝色操作、日间／夜间／跟随系统主题。以正式 `src/` 为准，不回退旧黑绿界面。
+- 功能图标使用用户选定的 A 套 IconSax Bold；上传、下载、返回顶部和大图关闭按用户要求使用圆头线条图标。所有 SVG 本地集成，来源见 `docs/ICONSAX_NOTICE.md`，构建包保留 `licenses/iconsax.txt`。
+- 提示词卡片下方新增“一键置顶”：移到全库最前面并持久保存，收藏夹／搜索视图同样可用，后续仍可拖动排序。返回顶部为单箭头圆形按钮，列表底部留白避免遮住最后一张卡片。
+- 创作描述输入框高度为 140px；清空图标位于框内右下角，有内容时出现，空白时隐藏。长文本可滚动，正文为按钮预留右侧空间。
+- 修复开始生成时的 `Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist.`：后台接收长连接心跳，断开时读取错误状态，完成后释放心跳与轮询。断开恢复只读取任务结果，不重复发送生成请求；重新生成时清除上一轮结果／失败提示。
+- 生图等待框随主题显示清晰的灰底与边框，中央显示蓝色加载图标和文字，取消整个占位框的淡出；支持减少动态效果。完成后替换为生成图片。
+- 生成图片上的左右操作使用磨砂半透明深色底、白色文字和图标。大图预览右上角为无圆底的白色叉号，保留 40px 点击区域。
+- 本轮验证：生产构建及六项本地回归脚本通过；隔离 Chromium 加载真实 `dist` 检查明暗主题、420／680／980px 操作、排序刷新／重启持久化、输入与清空、加载占位与完成切换、大图关闭、返回顶部。生成连接故障在修复前复现相同日志，修复后模拟接口成功且控制台无该错误；未调用用户真实付费 API，未改动用户浏览器数据。
+
+## 已保留的功能基准
 
 ### 最新功能：收藏夹、排序与编辑
 
@@ -30,9 +41,9 @@
 - 删除收藏夹使用约 2 秒底部通知；步骤编辑保存失败保留草稿，成功后才退出。正文编辑不再出现绿色焦点边线。
 - 2026-10-12 验证：生产构建、排序／并发持久化回归测试通过；隔离 Chromium 加载真实扩展验证拖动预览与取消、保存和编辑、回车与空白处确认、中文输入法保护、配置保存、重启后标题和顺序保留。测试使用隔离数据，未调用真实 AI。
 
-以本分支当前 `src/` 为准：黑色背景、灰色层级、绿色操作，导航为提示词库／创作／图像工坊。
+以本分支当前 `src/` 为准，导航为提示词库／创作／图像工坊。
 
-- 移除旧的 186 条内置提示词及自动导入入口；用户收集的内容保留。
+- 旧的内置提示词已退役，用户收集的内容保留。当前提供 6 条精选默认提示词，仅补齐缺失项，不自动点赞或加入收藏夹，不覆盖用户编辑。
 - 通过收藏夹整理内容，分类栏已移除；旧分类数据仍在“全部”可访问。
 - 手动提示词组支持标题、备注、多步骤，步骤卡片可复制、编辑、删除；整组可再次编辑。
 - 手动组不显示创作专用英文／JSON／状态／AI 操作，示例图显示在外层卡片右侧。
@@ -50,7 +61,7 @@ git clone https://github.com/MianTiaoDW/prompt-butler.git
 cd prompt-butler
 git fetch origin
 git switch main
-npm install
+npm ci
 npm run typecheck
 npm run build
 ```
@@ -62,7 +73,7 @@ git status --short --branch
 git fetch origin
 git switch main
 git pull --ff-only
-npm install
+npm ci
 npm run build
 ```
 
@@ -70,7 +81,7 @@ npm run build
 
 给另一台电脑 Codex 的第一条指令：
 
-> 完整阅读 `AGENTS.md`、`docs/CODEX_HANDOFF.md`、`README.md`，检查当前分支、Git 状态和最近提交。以最新 `main` 为正式基准。当前正式插件采用黑绿配色，以 src/ 下最新代码为准；设计实验和旧截图不应覆盖正式界面。
+> 完整阅读 `AGENTS.md`、`docs/CODEX_HANDOFF.md`、`README.md`，检查当前分支、Git 状态和最近提交。以最新 `main` 为正式基准。当前正式插件采用蓝色操作、日间／夜间主题和 IconSax Bold 图标，以 src/ 下最新代码为准；旧截图不应覆盖正式界面。拉取后执行 npm ci、npm run build，再重新加载本机 dist。
 
 ## 仓库中已经保留的内容
 
@@ -82,7 +93,7 @@ npm run build
 - 配置中心、服务商健康检查、模型发现以及 Background 请求编排。
 - Windows 可选原生置顶辅助程序及安装/卸载脚本。
 
-数据事实：设置和 Prompt 使用 `chrome.storage.local`；会话状态使用 `chrome.storage.session`；明确保存的示例图 Blob 使用扩展 Origin IndexedDB。不存在账号、云同步、云容量或跨电脑自动数据同步。
+数据事实：设置和 Prompt 使用 `chrome.storage.local`；会话状态使用 `chrome.storage.session`；明确保存的示例图 Blob 使用扩展 Origin IndexedDB。生成图片自动保存到本地创作历史，最多保留 50 条，图片数据存入 IndexedDB。不存在账号、云同步、云容量或跨电脑自动数据同步。
 
 2026-10-12 已清理不参与正式插件构建的视觉实验、原型和截图目录。当前界面、功能和数据流均以 `src/` 为准。
 
@@ -93,11 +104,17 @@ npm run build
 ```powershell
 npm run typecheck
 npm run build
+node scripts/test-prompt-organization.cjs
+node scripts/test-generation-runtime.cjs
+node scripts/test-default-prompts.cjs
+node scripts/test-creation-history.cjs
+node scripts/test-history-migration.cjs
+node scripts/test-image-downloads.cjs
 ```
 
 静态构建不能替代 Chrome/Edge 实际验收；另一台电脑首次接续后若修改正式插件，应加载最新 `dist`，至少检查打开工作台、配置状态、提示词生成、收藏、图像工坊、显式保存示例图和可选置顶流程。
 
-已知但本轮不擅自修改的问题：根 `package.json` 版本为 `1.2.0`，`manifest.config.ts` 仍为 `1.0.3`。这是当前代码中的元数据不一致，不影响本地构建，但下次正式发布前必须统一版本号并明确发布策略。
+当前 `package.json` 和 `manifest.config.ts` 的版本均为 `1.2.0`，正式名称以 Manifest 的“Promi 提示词管家”为准。
 
 ## 不进入 GitHub 的内容
 

@@ -2,7 +2,7 @@ import { useTheme } from "../hooks/useTheme";
 import { confirmInputOnBlankClick, confirmInputOnEnter, startInputComposition, finishInputComposition } from "../lib/enter-confirm";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Activity, ArrowLeft, BrainCircuit, Check, ChevronDown, DatabaseZap, Eye, EyeOff, X } from "lucide-react";
+import { Activity, ArrowLeft, BrainCircuit, Check, ChevronDown, DatabaseZap, Eye, EyeOff, X } from "../components/PromiIcons";
 
 import {
   applyDetectedModelCatalog,

@@ -7,7 +7,7 @@ import {
   Save,
   Sparkles,
   X
-} from "lucide-react";
+} from "../components/PromiIcons";
 
 import { useChromeStorage } from "../hooks/useChromeStorage";
 import { useExtensionSettings } from "../hooks/useExtensionSettings";
@@ -398,10 +398,14 @@ export function ImageStudio(props: {
         {isGenerating ? (
           <div className="image-results-grid" aria-hidden="true">
             {Array.from({ length: settings.imageCount }).map((_, index) => (
-              <article key={`skeleton-${index + 1}`} className="media-card">
-                <div
-                  className={`${getGalleryAspectClass(settings.imageAspectRatio)} w-full animate-pulse bg-white/[0.075]`}
-                />
+              <article key={`skeleton-${index + 1}`} className="media-card media-loading-card">
+                <div className={`${getGalleryAspectClass(settings.imageAspectRatio)} media-loading-placeholder w-full`}>
+                  <div className="media-loading-content">
+                    <span className="media-loading-icon"><LoaderCircle className={`h-7 w-7 ${shouldReduceMotion ? "" : "animate-spin"}`} /></span>
+                    <strong>图片生成中</strong>
+                    <span>完成后将在这里显示</span>
+                  </div>
+                </div>
               </article>
             ))}
           </div>
@@ -464,7 +468,7 @@ export function ImageStudio(props: {
                       void handleDownload([image.url], image.id);
                     }}
                     disabled={downloadingId === image.id}
-                    className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-xl border border-white/10 bg-black/55 px-3 py-2 text-xs text-white/85 shadow-[0_10px_26px_rgba(0,0,0,0.32)] backdrop-blur transition hover:border-accent/35 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                    className="image-overlay-action absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-45"
                   >
                     <Download className="h-3.5 w-3.5" />
                     {downloadingId === image.id ? "下载中" : "下载"}
@@ -473,7 +477,7 @@ export function ImageStudio(props: {
                     type="button"
                     onClick={(event) => { event.stopPropagation(); void handleSetExampleImage(image); }}
                     disabled={savedExampleIds.has(image.id)}
-                    className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-xl border border-white/10 bg-black/55 px-3 py-2 text-xs text-white/85 backdrop-blur transition hover:border-accent/35 disabled:opacity-60"
+                    className="image-overlay-action absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs disabled:opacity-60"
                   >
                     <Save className="h-3.5 w-3.5" />
                     {savedExampleIds.has(image.id) ? "已设为示例图" : "设为示例图"}

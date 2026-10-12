@@ -793,17 +793,11 @@
     gap: var(--space-3);
   }
 
-  .creator-input-meta {
-    display: flex;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: var(--space-2);
-    color: var(--text-tertiary);
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
+  .creator-idea-field {
+    position: relative;
+    margin-top: var(--space-4);
   }
 
-  .creator-input-meta button,
   .creator-template-placeholder {
     display: inline-flex;
     align-items: center;
@@ -814,15 +808,30 @@
     transition: background-color 160ms ease, color 160ms ease;
   }
 
-  .creator-input-meta button:hover {
+  .creator-input-clear {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border-radius: var(--radius-pill);
+    color: var(--text-secondary);
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+
+  .creator-input-clear:hover {
     background: var(--bg-surface-3);
     color: var(--text-primary);
   }
 
   textarea.creator-idea-input {
-    min-height: 190px;
-    margin-top: var(--space-4);
-    padding: var(--space-4) !important;
+    display: block;
+    height: 140px;
+    min-height: 140px;
+    margin-top: 0;
+    padding: var(--space-4) 52px var(--space-4) var(--space-4) !important;
     border-color: var(--border-subtle);
     border-radius: var(--radius-large) !important;
     background: var(--bg-input-core);
@@ -1229,6 +1238,47 @@
     font-size: 12px;
   }
 
+  .media-loading-card {
+    border-color: var(--border-strong);
+  }
+
+  .media-loading-placeholder {
+    display: grid;
+    place-items: center;
+    background: var(--bg-surface-3);
+  }
+
+  .media-loading-content {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .media-loading-content strong {
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .media-loading-icon {
+    display: grid;
+    width: 56px;
+    height: 56px;
+    margin-bottom: var(--space-1);
+    place-items: center;
+    border-radius: var(--radius-medium);
+    background: var(--accent-soft);
+    color: var(--accent-primary);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .media-loading-icon svg { animation: none; }
+  }
+
   .image-history-panel {
     padding: var(--space-3) var(--space-4);
     background: var(--bg-app);
@@ -1614,6 +1664,7 @@
     max-width: 1100px;
     gap: var(--space-4);
     margin: 0 auto;
+    padding-bottom: 64px;
   }
 
   .prompt-asset-section-heading > span {
@@ -2002,12 +2053,13 @@
     bottom: var(--space-4);
     z-index: 20;
     display: inline-flex;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     align-items: center;
-    gap: var(--space-2);
-    padding: 0 var(--space-3);
+    justify-content: center;
+    padding: 0;
     border: 1px solid var(--accent-border);
-    border-radius: var(--radius-pill);
+    border-radius: 50%;
     background: var(--bg-elevated);
     box-shadow: var(--shadow-floating);
     color: var(--accent-primary);
@@ -3243,7 +3295,6 @@
   @container workspace (max-width: 390px) {
     .creator-input-surface { padding: var(--space-3); }
     .creator-input-heading { align-items: flex-start; flex-wrap: wrap; }
-    textarea.creator-idea-input { min-height: 160px; }
     .creator-results-heading { align-items: flex-start; flex-wrap: wrap; }
     .creator-output-actions { justify-content: flex-start; }
     .prompt-folder-grid { grid-template-columns: minmax(0, 1fr); }
@@ -3726,4 +3777,26 @@
   color: #fff;
 }
 
-.image-preview-close, .image-preview-close:hover { color: #fff; }
+.image-preview-close, .image-preview-close:hover {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: #fff;
+}
+.image-preview-close svg { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .7)); }
+
+.image-overlay-action {
+  border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(20, 26, 38, .58);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .16), inset 0 1px 0 rgba(255, 255, 255, .1);
+  backdrop-filter: blur(16px) saturate(125%);
+  -webkit-backdrop-filter: blur(16px) saturate(125%);
+  transition: background-color 160ms ease;
+}
+.image-overlay-action:hover:not(:disabled) { background: rgba(20, 26, 38, .72); }

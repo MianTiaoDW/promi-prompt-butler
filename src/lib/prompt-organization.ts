@@ -38,6 +38,16 @@ export async function reorderPromptRecords(orderedVisibleIds: string[]) {
   return storageSet(PROMPT_STORAGE_KEYS.favorites, next, existing);
 }
 
+export async function movePromptToTop(promptId: string) {
+  const existing = sortPromptRecords(await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []));
+  if (!existing.some((record) => record.id === promptId)) throw new Error("提示词已删除。");
+  if (existing[0]?.id === promptId) return existing;
+  const byId = new Map(existing.map((record) => [record.id, record]));
+  const next = moveOrderedId(existing.map((record) => record.id), promptId, existing[0].id)
+    .map((id, order) => ({ ...byId.get(id)!, order }));
+  return storageSet(PROMPT_STORAGE_KEYS.favorites, next, existing);
+}
+
 export async function collectPromptToFolder(promptId: string, folderId: string) {
   const folders = await storageGet<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []);
   if (!folders.some((folder) => folder.id === folderId)) throw new Error("收藏夹已删除，请重新选择。");

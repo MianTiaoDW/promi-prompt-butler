@@ -17,13 +17,13 @@
   <img src="https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?logo=tailwindcss&logoColor=white&style=flat-square" alt="Tailwind CSS" />
   <img src="https://img.shields.io/badge/Chrome_Extension-MV3-4285F4?logo=googlechrome&logoColor=white&style=flat-square" alt="Chrome Extension" />
   <img src="https://img.shields.io/badge/Framer_Motion-12-0055FF?logo=framer&logoColor=white&style=flat-square" alt="Framer Motion" />
-  <img src="https://img.shields.io/badge/Lucide_Icons-latest-F56565?logo=lucide&logoColor=white&style=flat-square" alt="Lucide" />
+  <img src="https://img.shields.io/badge/IconSax-Bold-0467FB?style=flat-square" alt="IconSax Bold" />
   <img src="https://img.shields.io/badge/CRXJS-latest-FF6B35?logo=vite&logoColor=white&style=flat-square" alt="CRXJS" />
 </p>
 
 ---
 
-> **当前开发基准（2026-10-12）**：最新正式插件位于 `main`。跨电脑接续先阅读 [`docs/CODEX_HANDOFF.md`](docs/CODEX_HANDOFF.md)，拉取最新 `main` 后执行 `npm ci`、`npm run build`，在 Chrome 加载本机生成的 `dist/`。
+> **当前开发基准（2026-10-13）**：最新完整插件“Promi 提示词管家”位于 `main`。跨电脑接续先阅读 [`docs/CODEX_HANDOFF.md`](docs/CODEX_HANDOFF.md)，拉取最新 `main` 后执行 `npm ci`、`npm run build`，在 Chrome／Edge 加载或重新加载本机生成的 `dist/`。API 设置和浏览器内收藏数据不随 Git 同步。
 
 ---
 
@@ -41,17 +41,18 @@
 - **收藏夹管理** — 文件夹分类、搜索、导入/导出备份、AI 一键优化已有提示词
 - **图像生成** — 提示词直出图片，支持单张/批量下载
 - **收藏夹整理与排序** — 卡片可加入已有或新建收藏夹；拖动时半透明让位预览，松手保存顺序，重启后保留
+- **一键置顶** — 将任意提示词移到列表最前面并保存顺序；返回顶部按钮为圆形箭头，不遮住末尾操作
 - **配置中心** — 支持 Claude / Gemini / ChatGPT / Deepseek 等十余种服务商
-- **暗黑毛玻璃 UI** — 全局悬浮窗，可拖拽，高颜值玻璃态暗黑界面
+- **日间／夜间主题** — 蓝色操作、IconSax Bold 圆润图标，图片操作使用磨砂半透明底；紧凑描述输入框带内置清空按钮
 
 ---
 
 - **Prompt Expansion** — Input role preset + brief requirement, get 3 formatted professional prompts
 - **Favorites System** — Folders, full-text search, import/export backups, AI one-click optimization
 - **Image Generation** — Generate images directly from prompts, single/batch download
-- **Custom Tabs** — Create custom categories with independent folder systems
+- **Persistent Ordering** — Drag cards or move a prompt to the top; retain ordering after restart
 - **Provider Hub** — 10+ AI providers supported (Claude, Gemini, ChatGPT, Deepseek, etc.)
-- **Dark Glassmorphism UI** — Draggable floating overlay with sleek glassmorphism design
+- **Light / Dark Themes** — Blue actions, rounded IconSax Bold icons, frosted image controls and compact input
 
 ---
 
@@ -62,7 +63,7 @@
 | 框架 | React 18, TypeScript 5 |
 | 构建 | Vite 5, @crxjs/vite-plugin |
 | 样式 | Tailwind CSS 3, Framer Motion 11 |
-| 图标 | Lucide React |
+| 图标 | 本地 IconSax Bold SVG 与圆润语义补充（[来源与许可](docs/ICONSAX_NOTICE.md)） |
 | 拖拽 | react-rnd |
 | 存储 | chrome.storage.local |
 | 架构 | Chrome Extension Manifest V3（Service Worker + Content Script + Options Page） |

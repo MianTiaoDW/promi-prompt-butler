@@ -51,13 +51,25 @@ export function sendRuntimeMessageLong<TResponse>(
     let settled = false;
     let poll: ReturnType<typeof setInterval> | null = null;
 
-    // 打开长连接端口，防止 Service Worker 因闲置被杀
+    // 长连接需要实际发送消息，才能重置 Service Worker 的闲置计时。
     const keepAlivePort = chrome.runtime.connect({ name: "long-task" });
+    let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+    const stopKeepAlive = () => {
+      if (keepAliveTimer) clearInterval(keepAliveTimer);
+      keepAliveTimer = null;
+    };
     keepAlivePort.onDisconnect.addListener(() => {
-      // Worker 断开时不做失败处理，依赖轮询兜底
+      void chrome.runtime.lastError;
+      stopKeepAlive();
+      // Worker 断开时依赖任务轮询恢复，不重复发送收费生成请求。
     });
+    keepAliveTimer = setInterval(() => {
+      try { keepAlivePort.postMessage({ type: "task:keep-alive" }); }
+      catch { stopKeepAlive(); }
+    }, 20000);
 
     const cleanup = () => {
+      stopKeepAlive();
       if (poll) clearInterval(poll);
       poll = null;
       try {

@@ -1,4 +1,4 @@
-import { ArrowUpRight, Eye } from "lucide-react";
+import { ArrowUpRight, Eye } from "../components/PromiIcons";
 
 export function WorkflowConnector(props: {
   title: string;

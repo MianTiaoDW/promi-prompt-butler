@@ -1,7 +1,7 @@
 import RubberSegment from "../components/RubberSegment/RubberSegment";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowUp, Pin, Search, Settings, X } from "lucide-react";
+import { ArrowUp, Pin, Search, Settings, X } from "../components/PromiIcons";
 
 import { confirmInputOnBlankClick, confirmInputOnEnter, startInputComposition, finishInputComposition } from "../lib/enter-confirm";
 import { FavoritesStudio } from "./FavoritesStudio";
@@ -470,9 +470,11 @@ export function OverlayApp({
             <button
               type="button"
               className="library-back-to-top"
+              title="返回顶部"
+              aria-label="返回顶部"
               onClick={() => contentScrollRef.current?.scrollTo({ top: 0, behavior: shouldReduceMotion ? "auto" : "smooth" })}
             >
-              <ArrowUp className="h-4 w-4" />返回顶部
+              <ArrowUp className="h-5 w-5" />
             </button>
           ) : null}
         </motion.div>

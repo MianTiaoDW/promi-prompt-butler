@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Folder, Plus, X } from "lucide-react";
+import { Check, Folder, Plus, X } from "../components/PromiIcons";
 import { useModalFocus } from "../hooks/useModalFocus";
 import { createPromptFolder } from "../lib/prompt-library";
 import { belongsToFolder } from "../lib/prompt-organization";

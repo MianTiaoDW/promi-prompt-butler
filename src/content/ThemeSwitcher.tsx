@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Sun, Moon, Monitor } from "lucide-react";
+import { Sun, Moon, Monitor } from "../components/PromiIcons";
 import type { ThemeMode } from "../hooks/useTheme";
 import { showToast } from "../lib/toast";
 

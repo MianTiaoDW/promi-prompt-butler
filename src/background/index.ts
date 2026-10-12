@@ -36,6 +36,18 @@ import {
 
 console.log("[Prompt Butler] Service Worker 启动中...");
 
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "long-task") return;
+  port.onMessage.addListener(() => {
+    // 接收生成任务的心跳，让等待中的 Worker 保持活跃。
+    // 生成请求仍由下方 onMessage 的受控消息入口处理。
+  });
+  port.onDisconnect.addListener(() => {
+    // 工作台关闭或重新加载时，读取断开错误，避免 Chrome 记录 unchecked 错误。
+    void chrome.runtime.lastError;
+  });
+});
+
 // Content Script 只读取当前会话任务状态；持久示例图仍只经后台受控消息访问。
 void chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" });
 

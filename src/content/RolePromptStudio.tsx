@@ -10,7 +10,7 @@ import {
   Plus,
   Sparkles,
   X
-} from "lucide-react";
+} from "../components/PromiIcons";
 
 import { useChromeStorage } from "../hooks/useChromeStorage";
 import { saveImageWorkspace } from "../lib/image-library";
@@ -153,6 +153,7 @@ export function RolePromptStudio(props: {
   useEffect(() => {
     const applyTaskState = (task: Awaited<ReturnType<typeof getPromptTask>>) => {
       if (task.status === "submitting" || task.status === "generating") {
+        setGenerationResult(null);
         setIsGenerating(true);
         setPanelMessage("正在通过 Background 调用模型扩写角色提示词...");
         return;
@@ -205,6 +206,7 @@ export function RolePromptStudio(props: {
 
   const handleGenerate = async () => {
     if (isGenerating) return;
+    setGenerationResult(null);
     setIsGenerating(true);
     setPanelMessage("正在通过 Background 调用模型扩写角色提示词...");
     setSavedRecords({});
@@ -391,26 +393,28 @@ export function RolePromptStudio(props: {
             <div className="section-label">创意描述</div>
             <div className="section-hint">写下主体、场景、风格或想表达的氛围。</div>
           </div>
-          <div className="creator-input-meta">
+        </div>
+
+        <div className="creator-idea-field">
+          <textarea
+            value={workspaceState.userRequirement}
+            onChange={(event) => void updateWorkspace({ userRequirement: event.target.value })}
+            placeholder="例如：为一款东方茶饮设计商业海报，产品悬浮在晨雾山谷中，柔和逆光，留出品牌标题区域。"
+            aria-label="创意描述"
+            className="form-field creator-idea-input"
+          />
             {workspaceState.userRequirement ? (
               <button
                 type="button"
+                className="creator-input-clear"
                 onClick={() => void updateWorkspace({ userRequirement: "" })}
                 aria-label="清空创意描述"
+                title="清空描述"
               >
                 <Eraser className="h-4 w-4" />
-                清空
               </button>
             ) : null}
-          </div>
         </div>
-
-        <textarea
-          value={workspaceState.userRequirement}
-          onChange={(event) => void updateWorkspace({ userRequirement: event.target.value })}
-          placeholder="例如：为一款东方茶饮设计商业海报，产品悬浮在晨雾山谷中，柔和逆光，留出品牌标题区域。"
-          className="form-field creator-idea-input"
-        />
 
         <div className="creator-input-footer">
           <div className="flex min-w-0 flex-wrap items-center gap-2">

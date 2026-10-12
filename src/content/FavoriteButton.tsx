@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from "framer-motion";
-import { Heart } from "lucide-react";
+import { Heart } from "../components/PromiIcons";
 
 export function FavoriteButton({ active, onToggle, className = "" }: { active: boolean; onToggle: () => void; className?: string }) {
   const reduced = useReducedMotion();

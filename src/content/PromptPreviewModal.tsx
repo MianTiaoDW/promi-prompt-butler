@@ -1,7 +1,7 @@
 import { FavoriteButton } from "./FavoriteButton";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Copy, Eye, Image, PencilLine, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Copy, Eye, Image, PencilLine, Plus, Sparkles, Trash2, X } from "../components/PromiIcons";
 
 import type { PromptGroup, PromptOutputFormat, SavedPromptRecord } from "../types/prompt";
 import { useModalFocus } from "../hooks/useModalFocus";

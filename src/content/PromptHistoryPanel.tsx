@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, Download, Eye, RotateCcw } from "lucide-react";
+import { ChevronDown, Download, Eye, RotateCcw } from "../components/PromiIcons";
 import type { ImageHistoryEntry } from "../types/image";
 import { MOTION } from "../lib/motion";
 import { ImagePreviewModal } from "./ImagePreviewModal";

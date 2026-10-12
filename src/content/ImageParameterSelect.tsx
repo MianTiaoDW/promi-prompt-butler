@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "../components/PromiIcons";
 
 export function ImageParameterSelect({ label, value, options, onChange }: {
   label: string;

@@ -1,4 +1,4 @@
-import { BookmarkPlus, Check, Copy, Image } from "lucide-react";
+import { BookmarkPlus, Check, Copy, Image } from "../components/PromiIcons";
 
 interface PromptActionBarProps {
   copied?: boolean;

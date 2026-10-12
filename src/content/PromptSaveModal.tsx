@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { X } from "lucide-react";
+import { X } from "../components/PromiIcons";
 
 import { useModalFocus } from "../hooks/useModalFocus";
 import { MOTION } from "../lib/motion";
