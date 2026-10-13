@@ -42,7 +42,7 @@ const { chromium } = require("playwright");
           runtime: {
             getURL: name => location.origin + "/" + name,
             sendNativeMessage: async () => ({ ok: false, message: "Test has no native access" }),
-            sendMessage: (message, callback) => { window.testRequests.push(message.type); callback?.({ ok: true, images: [], assets: [], records: [], totalBytes: 0 }); },
+            sendMessage: (message, callback) => { window.testRequests.push(message.type); callback?.({ ok: true, images: [], assets: [], records: [], totalBytes: 0, usage: { usedBytes: 0, limitBytes: 30 * 1024 * 1024, imageCount: 0 } }); },
             onMessage: { addListener() {}, removeListener() {} }
           }
         };
@@ -50,6 +50,7 @@ const { chromium } = require("playwright");
       const page = await context.newPage();
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
+      if (!process.argv.includes("--settings-only")) {
       await page.goto(`http://127.0.0.1:${server.address().port}/options.html?view=app`);
       await page.getByRole("heading", { name: "欢迎使用 Promi" }).waitFor();
       await page.getByRole("button", { name: "从头开始", exact: true }).click();
@@ -101,8 +102,35 @@ const { chromium } = require("playwright");
       }
       assert.equal(errors.length, 0, errors.join("\n"));
       assert(!(await page.evaluate(() => window.testRequests)).some(type => /generate|download/.test(type)), "Tutorial must not generate or download");
+      }
+      await page.goto(`http://127.0.0.1:${server.address().port}/options.html`);
+      await page.waitForTimeout(500);
+      assert.equal(errors.length, 0, errors.join("\n"));
+      for (const label of ["服务商", "图像比例", "分辨率", "生成数量"]) {
+        const trigger = page.getByRole("button", { name: label, exact: true });
+        await trigger.click();
+        const menu = page.getByRole("listbox", { name: label, exact: true });
+        await menu.waitFor();
+        assert((await menu.getAttribute("class")).includes("image-parameter-menu"));
+        const option = menu.getByRole("option").last();
+        const text = await option.textContent();
+        await option.click();
+        assert((await trigger.textContent()).includes(text));
+        await trigger.click();
+        await page.keyboard.press("Escape");
+        assert.equal(await menu.count(), 0);
+      }
+      const model = page.getByRole("combobox").first();
+      await model.fill("my-custom-model");
+      assert.equal(await model.inputValue(), "my-custom-model", "Manual model IDs must remain supported");
+      assert((await page.locator(".model-combobox-menu").getAttribute("class")).includes("image-parameter-menu"));
+      await page.keyboard.press("Escape");
+      assert.equal(await page.locator(".model-combobox-menu").count(), 0);
+      assert.equal(errors.length, 0, errors.join("\n"));
       await context.close();
     }
-    console.log("PASS: 21 targets in both themes, bubble bounds, first run, completion/skip persistence, chapter selection and compact header; no AI calls");
+    console.log(process.argv.includes("--settings-only")
+      ? "PASS: unified settings dropdown selection/Escape and manual model IDs in both themes"
+      : "PASS: tutorial in both themes and widths; unified settings dropdown selection/Escape and manual model IDs; no AI calls");
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

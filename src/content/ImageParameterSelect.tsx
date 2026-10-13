@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown } from "../components/PromiIcons";
 
-export function ImageParameterSelect({ label, value, options, onChange }: {
+export function ImageParameterSelect({ label, value, options, onChange, className = "" }: {
   label: string;
   value: string;
   options: { value: string; label: string }[];
   onChange: (value: string) => void;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -15,12 +16,12 @@ export function ImageParameterSelect({ label, value, options, onChange }: {
     if (!open) return;
     items.current[Math.max(0, options.findIndex(option => option.value === value))]?.focus();
     const close = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      if (root.current && !event.composedPath().includes(root.current)) setOpen(false);
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, [open]);
-  return <div ref={root} className="image-parameter-select" onBlur={event => {
+  return <div ref={root} className={`image-parameter-select ${className}`} onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false);
   }}>
     <span className="mb-1.5 block text-xs text-white/50">{label}</span>
@@ -30,7 +31,8 @@ export function ImageParameterSelect({ label, value, options, onChange }: {
       {options.find(option => option.value === value)?.label}<ChevronDown className="h-4 w-4" />
     </button>
     {open ? <div className="image-parameter-menu" role="listbox" aria-label={label} onKeyDown={event => {
-      const index = items.current.indexOf(document.activeElement as HTMLButtonElement);
+      const scope = root.current?.getRootNode() as Document | ShadowRoot;
+      const index = items.current.indexOf(scope.activeElement as HTMLButtonElement);
       let next = index;
       if (event.key === "Escape") { event.preventDefault(); setOpen(false); trigger.current?.focus(); return; }
       if (event.key === "ArrowDown") next = Math.min(options.length - 1, index + 1);

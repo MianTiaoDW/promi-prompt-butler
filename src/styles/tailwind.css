@@ -3778,6 +3778,10 @@
 .image-parameter-menu button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 9px 10px; border: 0; border-radius: 9px; background: transparent; color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; }
 .image-parameter-menu button:hover, .image-parameter-menu button:focus-visible { background: var(--accent-soft); outline: none; }
 .image-parameter-menu button[aria-selected="true"] { background: var(--accent-primary); color: #fff; }
+.settings-parameter-select > span { margin-bottom: var(--space-2); color: var(--text-secondary); font-size: 14px; font-weight: 500; }
+.settings-parameter-select .image-parameter-trigger { min-height: 46px; font-size: 14px; }
+.model-combobox:has(.image-parameter-menu) { z-index: 20; }
+.model-combobox .image-parameter-menu button { overflow-wrap: anywhere; }
 
 .connection-success-text { color: var(--status-online); }
 

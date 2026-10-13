@@ -1,4 +1,5 @@
 import { useTheme } from "../hooks/useTheme";
+import { ImageParameterSelect } from "../content/ImageParameterSelect";
 import { confirmInputOnBlankClick, confirmInputOnEnter, startInputComposition, finishInputComposition } from "../lib/enter-confirm";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -140,7 +141,7 @@ function ModelCombobox({
         </button>
 
         {isOpen ? (
-          <div id={`${id}-listbox`} role="listbox" className="model-combobox-menu">
+          <div id={`${id}-listbox`} role="listbox" className="model-combobox-menu image-parameter-menu">
             {filteredOptions.length > 0 ? filteredOptions.map((model) => (
               <button
                 key={model}
@@ -465,21 +466,9 @@ export function OptionsApp() {
                 <p>用于连接模型服务的服务商、凭证与地址。</p>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <label className="block">
-                  <span className="settings-field-label">服务商</span>
-                  <div className="relative">
-                    <select
-                      value={draftSettings.provider}
-                      onChange={(event) => handleProviderChange(event.target.value as ExtensionSettings["provider"])}
-                      className="form-field settings-control appearance-none pr-10"
-                    >
-                      {providerOptions.map((option) => (
-                        <option key={option.id} value={option.id}>{option.label}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" />
-                  </div>
-                </label>
+                <ImageParameterSelect className="settings-parameter-select" label="服务商" value={draftSettings.provider}
+                  options={providerOptions.map(option => ({ value: option.id, label: option.label }))}
+                  onChange={value => handleProviderChange(value as ExtensionSettings["provider"])} />
 
                 <label className="block">
                   <span className="settings-field-label">
@@ -621,54 +610,15 @@ export function OptionsApp() {
                 <p>作为图像工坊的默认生成参数。</p>
               </div>
               <div className="grid gap-4 md:grid-cols-3">
-                <label className="block">
-                  <span className="settings-field-label">图像比例</span>
-                  <div className="relative">
-                    <select
-                      value={draftSettings.imageAspectRatio}
-                      onChange={(event) => setDraftSettings((current) => ({
-                        ...current,
-                        imageAspectRatio: event.target.value as ExtensionSettings["imageAspectRatio"]
-                      }))}
-                      className="form-field settings-control appearance-none pr-10"
-                    >
-                      {IMAGE_ASPECT_RATIOS.map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" />
-                  </div>
-                </label>
-                <label className="block">
-                  <span className="settings-field-label">分辨率</span>
-                  <div className="relative">
-                    <select
-                      value={draftSettings.imageResolution}
-                      onChange={(event) => setDraftSettings((current) => ({
-                        ...current,
-                        imageResolution: event.target.value as ExtensionSettings["imageResolution"]
-                      }))}
-                      className="form-field settings-control appearance-none pr-10"
-                    >
-                      {IMAGE_RESOLUTIONS.map((resolution) => <option key={resolution} value={resolution}>{resolution}</option>)}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" />
-                  </div>
-                </label>
-                <label className="block">
-                  <span className="settings-field-label">生成数量</span>
-                  <div className="relative">
-                    <select
-                      value={draftSettings.imageCount}
-                      onChange={(event) => setDraftSettings((current) => ({
-                        ...current,
-                        imageCount: Number(event.target.value) as ExtensionSettings["imageCount"]
-                      }))}
-                      className="form-field settings-control appearance-none pr-10"
-                    >
-                      {IMAGE_COUNTS.map((count) => <option key={count} value={count}>{count} 张</option>)}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" />
-                  </div>
-                </label>
+                <ImageParameterSelect className="settings-parameter-select" label="图像比例" value={draftSettings.imageAspectRatio}
+                  options={IMAGE_ASPECT_RATIOS.map(value => ({ value, label: value }))}
+                  onChange={value => setDraftSettings(current => ({ ...current, imageAspectRatio: value as ExtensionSettings["imageAspectRatio"] }))} />
+                <ImageParameterSelect className="settings-parameter-select" label="分辨率" value={draftSettings.imageResolution}
+                  options={IMAGE_RESOLUTIONS.map(value => ({ value, label: value }))}
+                  onChange={value => setDraftSettings(current => ({ ...current, imageResolution: value as ExtensionSettings["imageResolution"] }))} />
+                <ImageParameterSelect className="settings-parameter-select" label="生成数量" value={String(draftSettings.imageCount)}
+                  options={IMAGE_COUNTS.map(value => ({ value: String(value), label: `${value} 张` }))}
+                  onChange={value => setDraftSettings(current => ({ ...current, imageCount: Number(value) as ExtensionSettings["imageCount"] }))} />
               </div>
             </div>
 
