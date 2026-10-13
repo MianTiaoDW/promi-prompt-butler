@@ -275,7 +275,7 @@ export function PromptPreviewModal({
               {collected ? (allowEditing && onEditGroup ? <button type="button" onClick={onEditGroup}><PencilLine className="h-4 w-4" />编辑</button> : null) : <>
               <button type="button" onClick={onCopy}>{isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{isCopied ? "已复制" : "一键复制 Prompt"}</button>
               {allowEditing ? isEditing ? (
-                <button type="button" data-enter-submit onClick={() => { onSave(draftContent); setIsEditing(false); }}><Check className="h-4 w-4" />保存编辑</button>
+                <button type="button" className="gradient-button" data-enter-submit onClick={() => { onSave(draftContent); setIsEditing(false); }}><Check className="h-4 w-4" />保存编辑</button>
               ) : (
                 <button
                   type="button"

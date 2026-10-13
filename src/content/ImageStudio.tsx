@@ -386,7 +386,7 @@ export function ImageStudio(props: {
             <div className="section-label">本次生成结果</div>
             <div className="section-hint">生成后自动保存至 prompt-butler／创作历史</div>
           </div>
-          {!isGenerating && generationResult?.ok ? <div className="image-asset-actions"><button type="button" disabled={isDownloadingAll} onClick={() => void handleDownload(generationResult.images.map((image) => image.url))}><Download className="h-4 w-4" />{isDownloadingAll ? "保存中" : "保存作品"}</button><button type="button" onClick={() => void saveCurrentPrompt()}><Save className="h-4 w-4" />保存 Prompt</button></div> : null}
+          {!isGenerating && generationResult?.ok ? <div className="image-asset-actions"><button type="button" className="gradient-button" disabled={isDownloadingAll} onClick={() => void handleDownload(generationResult.images.map((image) => image.url))}><Download className="h-4 w-4" />{isDownloadingAll ? "保存中" : "保存作品"}</button><button type="button" className="gradient-button" onClick={() => void saveCurrentPrompt()}><Save className="h-4 w-4" />保存 Prompt</button></div> : null}
         </div>
 
         {isGenerating ? (
@@ -414,7 +414,7 @@ export function ImageStudio(props: {
         {!isGenerating && generationResult && !generationResult.ok ? (
           <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-4 text-sm text-rose-200">
             <p>{generationResult.message}</p>
-            <button type="button" className="ghost-button mt-3 px-3 py-2 text-xs" onClick={() => { void handleGenerate(); }}>
+            <button type="button" className="gradient-button mt-3 px-3 py-2 text-xs" onClick={() => { void handleGenerate(); }}>
               重试生成
             </button>
             {generationResult.technicalDetails && generationResult.technicalDetails !== generationResult.message ? (

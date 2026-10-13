@@ -1,7 +1,9 @@
 import RubberSegment from "../components/RubberSegment/RubberSegment";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowUp, Pin, Search, Settings, X } from "../components/PromiIcons";
+import { ArrowUp, Pin, Search, Settings, TutorialBook, X } from "../components/PromiIcons";
+import { NewUserTutorial } from "./NewUserTutorial";
+import { TUTORIAL_SEEN_KEY, type TutorialWorkspace } from "../lib/tutorial";
 
 import { confirmInputOnBlankClick, confirmInputOnEnter, startInputComposition, finishInputComposition } from "../lib/enter-confirm";
 import { FavoritesStudio } from "./FavoritesStudio";
@@ -66,6 +68,14 @@ export function OverlayApp({
       : iconAssetPath;
   const { rootRef: themeRootRef, mode: themeMode, setMode: setThemeMode } = useTheme();
   const [activeTab, setActiveTab] = useState<string>("角色设定");
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void storageGet(TUTORIAL_SEEN_KEY, false).then(seen => {
+      if (!cancelled && !seen) setTutorialOpen(true);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [assetFilter, setAssetFilter] = useState<PromptAssetFilter>("all");
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -211,11 +221,26 @@ export function OverlayApp({
     });
   };
 
+  const navigateTutorial = (workspace: TutorialWorkspace) => {
+    setQuickPromptRequest(null);
+    setSearchQuery("");
+    setAssetFilter(workspace === "folders" ? "folders" : "all");
+    setActiveTab(workspace === "identity" ? "角色设定" : workspace === "image" ? "图像生成" : "收藏");
+  };
+
   const togglePinned = async () => {
     const nextIsPinned = !isPinned;
-    const result = await onPinnedChange?.(nextIsPinned);
+    let result;
+    try {
+      result = await onPinnedChange?.(nextIsPinned);
+    } catch (error) {
+      showToast(`置顶失败：${error instanceof Error ? error.message : String(error)}`, "error");
+      return;
+    }
     if (result === false) {
-      showToast("当前浏览器无法创建置顶窗口", "error");
+      showToast(navigator.platform.toLowerCase().includes("mac")
+        ? "macOS 暂不支持系统窗口置顶"
+        : "置顶失败，请安装或重新安装 Windows 置顶辅助程序", "error");
       return;
     }
     if (pinned === undefined) {
@@ -294,6 +319,9 @@ export function OverlayApp({
               />
               {statusBadgeText}
             </div>
+            <button type="button" data-no-drag data-tutorial-launcher className="icon-button" aria-label="打开新手教程" title="新手教程" onClick={() => setTutorialOpen(true)}>
+              <TutorialBook className="h-4 w-4" />
+            </button>
             <button
               type="button"
               onClick={openOptions}
@@ -479,6 +507,7 @@ export function OverlayApp({
           ) : null}
         </motion.div>
 
+        {tutorialOpen ? <NewUserTutorial rootRef={themeRootRef} onNavigate={navigateTutorial} onClose={() => setTutorialOpen(false)} /> : null}
         <div className="workspace-toast-position">
         <AnimatePresence>
           {toast ? (

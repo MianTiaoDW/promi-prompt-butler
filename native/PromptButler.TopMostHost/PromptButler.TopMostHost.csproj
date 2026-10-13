@@ -7,4 +7,7 @@
     <AssemblyName>PromptButler.TopMostHost</AssemblyName>
     <RootNamespace>PromptButler.TopMostHost</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="FrameworkHost.cs" />
+  </ItemGroup>
 </Project>

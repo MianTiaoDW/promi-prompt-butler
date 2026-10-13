@@ -26,7 +26,8 @@ import {
   updateFavoritePrompt,
 } from "../lib/prompt-library";
 import { sendRuntimeMessage } from "../lib/runtime";
-import { exportPromptsAsZip, importPromptsFromFile } from "../lib/backup";
+import { exportPromptsAsZip, importPromptsFromFile, readPromptBackup } from "../lib/backup";
+import { PromptImportDialog } from "./PromptImportDialog";
 import { showToast } from "../lib/toast";
 import { deletePromptExampleImages } from "../lib/example-images";
 import type {
@@ -399,14 +400,29 @@ export function FavoritesStudio(props: {
       if (!file) return;
       setIsBackupBusy(true);
       try {
-        const result = await importPromptsFromFile(file);
-        window.dispatchEvent(new Event("prompt-library-updated"));
-        showToast(result.favorites || result.folders ? `已导入 ${result.favorites} 个提示词组、${result.images} 张示例图` : "导入完成，没有新增内容。");
+        await readPromptBackup(file);
+        setImportFile(file);
       } catch (error) {
         showToast(error instanceof Error ? error.message : "导入失败。");
       } finally { setIsBackupBusy(false); }
     };
     input.click();
+  };
+
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const confirmImport = async (mode: "append" | "replace") => {
+    if (!importFile || isBackupBusy) return;
+    setIsBackupBusy(true);
+    try {
+      const result = await importPromptsFromFile(importFile, mode);
+      window.dispatchEvent(new Event("prompt-library-updated"));
+      setSelectedFolderId(null);
+      setPreviewRecord(null);
+      setImportFile(null);
+      showToast(`${mode === "replace" ? "已覆盖导入" : "已追加"} ${result.favorites} 个提示词组，跳过 ${result.skipped} 条重复内容、导入 ${result.images} 张示例图`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "导入失败。", "error");
+    } finally { setIsBackupBusy(false); }
   };
 
   const optimizePrompt = async (record: SavedPromptRecord, direction?: string) => {
@@ -546,6 +562,8 @@ export function FavoritesStudio(props: {
           ) : null;
 
   const dialogContainer = libraryRef.current?.closest(".fluxora-shell");
+  const importDialog = importFile ? <PromptImportDialog file={importFile} busy={isBackupBusy} onClose={() => setImportFile(null)} onImport={(mode) => void confirmImport(mode)} /> : null;
+  const importModal = importDialog && dialogContainer ? createPortal(importDialog, dialogContainer) : importDialog;
   const promptEditor = promptCreateDialog && dialogContainer ? createPortal(promptCreateDialog, dialogContainer) : promptCreateDialog;
   const folderPicker = folderPickerRecord ? <PromptFolderPicker
     key={folderPickerRecord.id}
@@ -655,6 +673,7 @@ export function FavoritesStudio(props: {
       {assetFilter !== "all" ? <button type="button" className="gradient-button prompt-add-button px-3 py-2 text-sm" onClick={() => { resetPromptDraft(); setPromptTitleDraft(""); setIsCreatingPrompt(true); }}><Plus className="h-4 w-4" />添加提示词</button> : null}
       {promptEditor}
       {folderPickerDialog}
+      {importModal}
       {promptPreviewDialog}
       <PromptOptimizePanel record={optimizationRecord} busy={Boolean(optimizationRecord && busyId === optimizationRecord.id)} onClose={() => { if (!busyId) setOptimizationRecord(null); }} onOptimize={(direction) => { if (optimizationRecord) void optimizePrompt(optimizationRecord, direction); }} />
     </div>;
@@ -672,9 +691,9 @@ export function FavoritesStudio(props: {
           </header>
           {isCreatingFolder ? (
             <div data-enter-confirm className="prompt-folder-create-row">
-              <input className="form-field" value={folderNameDraft} onChange={(event) => setFolderNameDraft(event.target.value)} placeholder="收藏夹名称" autoFocus />
-              <button type="button" data-enter-submit onClick={() => void handleCreateFolder()} disabled={!folderNameDraft.trim()}><Check className="h-4 w-4" /></button>
-              <button type="button" onClick={() => { setIsCreatingFolder(false); setFolderNameDraft(""); }}><X className="h-4 w-4" /></button>
+              <input className="folder-create-input" aria-label="新建收藏夹名称" value={folderNameDraft} onChange={(event) => setFolderNameDraft(event.target.value)} placeholder="收藏夹名称" autoFocus />
+              <button type="button" className="folder-create-confirm" aria-label="确认新建收藏夹" data-enter-submit onClick={() => void handleCreateFolder()} disabled={!folderNameDraft.trim()}><Check className="h-4 w-4" /></button>
+              <button type="button" className="folder-create-cancel" aria-label="取消新建收藏夹" onClick={() => { setIsCreatingFolder(false); setFolderNameDraft(""); }}><X className="h-4 w-4" /></button>
             </div>
           ) : null}
           <div className="prompt-folder-grid folder-float-grid">
@@ -738,6 +757,7 @@ export function FavoritesStudio(props: {
 
       {promptEditor}
       {folderPickerDialog}
+      {importModal}
 
       {promptPreviewDialog}
       <PromptOptimizePanel

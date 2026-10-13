@@ -48,7 +48,7 @@ export function PromptFolderPicker({ record, folders, onClose, onConfirm }: {
       </div>
       <form data-enter-confirm className="prompt-folder-picker-create" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}>
         <label htmlFor="prompt-new-folder-name">新建收藏夹</label>
-        <div><input id="prompt-new-folder-name" className="form-field" placeholder="收藏夹名称" value={name} disabled={busy} onChange={(event) => setName(event.target.value)} /><button className="ghost-button px-3 py-2 text-sm" data-enter-submit type="submit" disabled={busy || !name.trim()}><Plus className="h-4 w-4" />新建并选中</button></div>
+        <div><input id="prompt-new-folder-name" className="form-field" placeholder="收藏夹名称" value={name} disabled={busy} onChange={(event) => setName(event.target.value)} /><button className="gradient-button px-3 py-2 text-sm" data-enter-submit type="submit" disabled={busy || !name.trim()}><Plus className="h-4 w-4" />新建并选中</button></div>
       </form>
       {error ? <p role="alert" className="text-sm text-rose-300">{error}</p> : null}
       <footer><button type="button" className="ghost-button px-4 py-2 text-sm" disabled={busy} onClick={close}>取消</button><button type="button" className="gradient-button px-4 py-2 text-sm" disabled={busy || !selectedId || !folders.some((folder) => folder.id === selectedId)} onClick={() => void confirm()}>{busy ? "处理中…" : "确认收藏"}</button></footer>

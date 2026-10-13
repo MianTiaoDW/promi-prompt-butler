@@ -50,13 +50,13 @@ function AppWindow() {
       ) as NativeWindowResponse;
       if (!response.ok || response.enabled !== nextPinned) {
         console.error("[Prompt Butler] 窗口置顶操作失败：", response.message);
-        return false;
+        throw new Error(response.message || "置顶辅助程序未返回正确的窗口状态");
       }
       setIsPinned(response.enabled);
       return true;
     } catch (error) {
       console.error("[Prompt Butler] 无法连接窗口置顶组件：", error);
-      return false;
+      throw error;
     }
   }, []);
 

@@ -25,7 +25,7 @@ export function ThemeSwitcher({ mode, onChange }: { mode: ThemeMode; onChange: (
     return () => { root.removeEventListener("pointerdown", outside); root.removeEventListener("keydown", key); };
   }, [open]);
   return <div className="theme-switcher" ref={ref} data-no-drag>
-    <motion.div aria-hidden="true" className="theme-switcher-shell" initial={false} animate={{ height: open ? 176 : 40 }} transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 440, damping: 27 }} />
+    <motion.div aria-hidden="true" className="theme-switcher-shell" initial={false} animate={{ height: open ? 176 : 34 }} transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 440, damping: 27 }} />
     <motion.button ref={trigger} type="button" className="icon-button" aria-label={`外观：${choices.find((choice) => choice.mode === mode)!.label}`} title="切换日间／夜间／跟随系统" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={() => setOpen((value) => !value)} whileTap={reduced ? undefined : { scale: 0.88 }}><Icon className="h-4 w-4" /></motion.button>
     <AnimatePresence>{open ? <motion.div id={menuId} role="menu" aria-label="外观模式" className="theme-mode-menu" initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -30 }} transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 470, damping: 26 }} onKeyDown={(event) => {
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;

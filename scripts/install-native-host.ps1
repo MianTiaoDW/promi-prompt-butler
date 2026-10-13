@@ -1,24 +1,26 @@
 param(
-  [string]$ExtensionId = "kacphaiefjcgokdfakpjdpjplfpnkpai"
+  [string]$ExtensionId = "kacphaiefjcgokdfakpjdpjplfpnkpai",
+  [string]$InstallDirectory = (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonDocuments)) ("PromptButler\NativeHost\" + [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value))
 )
 
 $ErrorActionPreference = "Stop"
 
 $hostName = "com.promptbutler.window"
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$projectPath = Join-Path $projectRoot "native\PromptButler.TopMostHost\PromptButler.TopMostHost.csproj"
 $publishDirectory = Join-Path $env:TEMP ("prompt-butler-native-host-" + [guid]::NewGuid().ToString("N"))
-$installDirectory = Join-Path $env:LOCALAPPDATA "PromptButler\NativeHost"
 $hostExecutable = Join-Path $installDirectory "PromptButler.TopMostHost.exe"
 $hostManifest = Join-Path $installDirectory "$hostName.json"
 
 try {
-  dotnet publish $projectPath `
-    --configuration Release `
-    --runtime win-x64 `
-    --self-contained false `
-    -p:PublishSingleFile=true `
-    --output $publishDirectory
+  New-Item -ItemType Directory -Path $publishDirectory -Force | Out-Null
+  $compilerPath = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+  if (-not (Test-Path -LiteralPath $compilerPath)) {
+    throw 'Windows .NET Framework 4.x is required to install the window pin host.'
+  }
+  & $compilerPath /nologo /target:exe /platform:x64 `
+    "/out:$publishDirectory\PromptButler.TopMostHost.exe" `
+    /reference:System.Web.Extensions.dll `
+    (Join-Path $projectRoot 'native\PromptButler.TopMostHost\FrameworkHost.cs')
 
   if ($LASTEXITCODE -ne 0) {
     throw "Failed to build the window pin host."

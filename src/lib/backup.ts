@@ -113,14 +113,26 @@ export async function readPromptBackup(file: File): Promise<{ backup: PromptBack
   return { backup, entries };
 }
 
-export async function importPromptsFromFile(file: File) {
+export async function importPromptsFromFile(file: File, mode: "append" | "replace" = "append") {
   const { backup, entries } = await readPromptBackup(file);
   const [existing, existingFolders, existingTabs] = await Promise.all([
     storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []),
     storageGet<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []), getCustomTabs()
   ]);
   const existingIds = new Set(existing.map((record) => record.id));
-  const newRecords = backup.favorites.filter((record) => !existingIds.has(record.id)).map((record) => ({ ...record, isFavorite: record.isFavorite ?? false, tags: record.tags ?? [], linkedImages: [], exampleImageIds: [] as string[], imageStorageVersion: 2 as const }));
+  const identity = (record: SavedPromptRecord) => JSON.stringify([
+    record.title.trim(),
+    (record.group ? formatPromptGroup(record.group) : record.content).replace(/\r\n/g, "\n").trim()
+  ]);
+  const identities = new Set(existing.map(identity));
+  const newRecords = backup.favorites.filter((record) => {
+    if (mode === "replace") return true;
+    const key = identity(record);
+    if (existingIds.has(record.id) || identities.has(key)) return false;
+    existingIds.add(record.id);
+    identities.add(key);
+    return true;
+  }).map((record) => ({ ...record, isFavorite: record.isFavorite ?? false, tags: record.tags ?? [], linkedImages: [], exampleImageIds: [] as string[], imageStorageVersion: 2 as const }));
   const savedImages: string[] = [];
   try {
     for (const record of newRecords) {
@@ -136,12 +148,12 @@ export async function importPromptsFromFile(file: File) {
     throw error;
   }
   const folderIds = new Set(existingFolders.map((folder) => folder.id));
-  const newFolders = backup.folders.filter((folder) => !folderIds.has(folder.id));
+  const newFolders = backup.folders.filter((folder) => mode === "replace" || !folderIds.has(folder.id));
   const categories = newRecords.map((record) => record.category.split("/")[0]);
   const importedTabs = [...backup.customTabs, ...categories].filter((tab) => !CORE_TABS.includes(tab) && !DEFAULT_PROMPT_TABS.includes(tab as typeof DEFAULT_PROMPT_TABS[number]));
-  const tabs = [...new Set([...existingTabs, ...importedTabs])];
-  await storageSet(PROMPT_STORAGE_KEYS.favorites, [...newRecords, ...existing], existing);
-  await storageSet(PROMPT_STORAGE_KEYS.folders, [...newFolders, ...existingFolders], existingFolders);
+  const tabs = [...new Set([...(mode === "replace" ? [] : existingTabs), ...importedTabs])];
+  await storageSet(PROMPT_STORAGE_KEYS.favorites, [...newRecords, ...(mode === "replace" ? [] : existing)], existing);
+  await storageSet(PROMPT_STORAGE_KEYS.folders, [...newFolders, ...(mode === "replace" ? [] : existingFolders)], existingFolders);
   await storageSet(CUSTOM_TABS_KEY, tabs);
-  return { favorites: newRecords.length, folders: newFolders.length, images: newRecords.reduce((count, record) => count + record.exampleImageIds.length, 0) };
+  return { favorites: newRecords.length, skipped: backup.favorites.length - newRecords.length, folders: newFolders.length, images: newRecords.reduce((count, record) => count + record.exampleImageIds.length, 0) };
 }

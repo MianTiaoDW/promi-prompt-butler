@@ -62,7 +62,7 @@ const esbuild = require("esbuild");
   assert.equal(data[folderKey].find(f => f.id === folder1.id).order, 1, "Deleting a folder must not change remaining ranks");
   const backup = { version: 2, favorites: structuredClone(data[key]), folders: structuredClone(data[folderKey]), customTabs: [] };
   data[key] = []; data[folderKey] = [];
-  await api.importPromptsFromFile(new File([JSON.stringify(backup)], "backup.json"));
+  await api.importPromptsFromFile(new File([JSON.stringify(backup)], "backup.json"), "replace");
   assert.deepEqual(api.sortPromptRecords(data[key]).map(r => r.id), api.sortPromptRecords(backup.favorites).map(r => r.id), "Backup restores manual ordering");
   assert.deepEqual(data[key].find(r => r.id === "legacy").folderIds, [folder1.id], "Backup restores folder membership");
   const group = { notes: "", steps: [{ name: "去掉重复序号", content: "修改后的正文" }] };
