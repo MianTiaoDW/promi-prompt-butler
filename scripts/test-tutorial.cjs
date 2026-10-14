@@ -42,7 +42,7 @@ const { chromium } = require("playwright");
           runtime: {
             getURL: name => location.origin + "/" + name,
             sendNativeMessage: async () => ({ ok: false, message: "Test has no native access" }),
-            sendMessage: (message, callback) => { window.testRequests.push(message.type); callback?.({ ok: true, images: [], assets: [], records: [], totalBytes: 0, usage: { usedBytes: 0, limitBytes: 30 * 1024 * 1024, imageCount: 0 } }); },
+            sendMessage: (message, callback) => { window.testRequests.push(message.type); if (message.type === "open-options-page" && message.tutorial) window.open(location.origin + "/options.html?tutorial=settings", "_blank"); callback?.({ ok: true, images: [], assets: [], records: [], totalBytes: 0, usage: { usedBytes: 0, limitBytes: 30 * 1024 * 1024, imageCount: 0 } }); },
             onMessage: { addListener() {}, removeListener() {} }
           }
         };
@@ -68,7 +68,12 @@ const { chromium } = require("playwright");
           fs.mkdirSync(path.resolve(__dirname, "../output/playwright"), { recursive: true });
           await page.screenshot({ path: path.resolve(__dirname, `../output/playwright/tutorial-${theme}.png`) });
         }
-        await page.getByRole("button", { name: i === 20 ? "完成教程" : "下一步", exact: true }).click();
+        if (i === 1) {
+          const [settingsPage] = await Promise.all([page.waitForEvent("popup"), page.getByRole("button", { name: "进入设置教程" }).click()]);
+          await settingsPage.getByRole("heading", { name: "先选你要用的平台" }).waitFor();
+          assert(settingsPage.url().includes("tutorial=settings"));
+          await settingsPage.close();
+        } else await page.getByRole("button", { name: i === 20 ? "完成教程" : "下一步", exact: true }).click();
       }
       await page.reload();
       await page.waitForTimeout(600);
@@ -98,7 +103,11 @@ const { chromium } = require("playwright");
           return bubble.left >= panel.left && bubble.right <= panel.right + 1 && bubble.top >= panel.top && bubble.bottom <= panel.bottom + 1;
         });
         assert(fits, `${theme} 420px step ${i + 1}: bubble outside panel`);
-        await page.getByRole("button", { name: i === 20 ? "完成教程" : "下一步", exact: true }).click();
+        if (i === 1) {
+          const [settingsPage] = await Promise.all([page.waitForEvent("popup"), page.getByRole("button", { name: "进入设置教程" }).click()]);
+          await settingsPage.getByRole("heading", { name: "先选你要用的平台" }).waitFor();
+          await settingsPage.close();
+        } else await page.getByRole("button", { name: i === 20 ? "完成教程" : "下一步", exact: true }).click();
       }
       assert.equal(errors.length, 0, errors.join("\n"));
       assert(!(await page.evaluate(() => window.testRequests)).some(type => /generate|download/.test(type)), "Tutorial must not generate or download");
@@ -112,8 +121,13 @@ const { chromium } = require("playwright");
         const menu = page.getByRole("listbox", { name: label, exact: true });
         await menu.waitFor();
         assert((await menu.getAttribute("class")).includes("image-parameter-menu"));
+        if (label === "服务商") {
+          assert.equal(await menu.getByRole("link").count(), 10);
+          fs.mkdirSync(path.resolve(__dirname, "../output/playwright"), { recursive: true });
+          await page.screenshot({ path: path.resolve(__dirname, `../output/playwright/settings-provider-menu-${theme}.png`) });
+        }
         const option = menu.getByRole("option").last();
-        const text = await option.textContent();
+        const text = label === "服务商" ? await option.locator(".provider-option-name").textContent() : await option.textContent();
         await option.click();
         assert((await trigger.textContent()).includes(text));
         await trigger.click();
@@ -126,11 +140,52 @@ const { chromium } = require("playwright");
       assert((await page.locator(".model-combobox-menu").getAttribute("class")).includes("image-parameter-menu"));
       await page.keyboard.press("Escape");
       assert.equal(await page.locator(".model-combobox-menu").count(), 0);
+      await context.route("https://**", route => route.fulfill({ status: 200, contentType: "text/html", body: "<h1>Mock official API console</h1>" }));
+      const providerTrigger = page.getByRole("button", { name: "服务商", exact: true });
+      for (const label of ["DeepSeek", "火山引擎", "Kimi"]) {
+        await providerTrigger.click();
+        const before = await providerTrigger.textContent();
+        const link = page.getByRole("link", { name: `${label}官方 API 平台`, exact: true });
+        const href = await link.getAttribute("href");
+        const [popup] = await Promise.all([page.waitForEvent("popup"), link.click()]);
+        await popup.waitForURL(href);
+        assert.equal(await providerTrigger.textContent(), before, "Official link must not switch provider");
+        await popup.close();
+        await page.keyboard.press("Escape");
+      }
+      await providerTrigger.click();
+      assert.equal(await page.getByRole("link", { name: /中转站/ }).count(), 0, "Relay has no fixed official site");
+      await page.keyboard.press("Escape");
+      for (const width of [420, 1100]) {
+        await page.setViewportSize({ width, height: 850 });
+        await page.getByRole("button", { name: "打开设置教程" }).click();
+        const configBefore = await page.evaluate(() => localStorage.getItem("test-storage"));
+        for (let i = 0; i < 10; i++) {
+          await page.waitForTimeout(400);
+          const metrics = await page.evaluate(() => {
+            const bubble = document.querySelector(".tutorial-bubble").getBoundingClientRect();
+            return { target: Boolean(document.querySelector(".tutorial-spotlight")), fits: bubble.left >= 0 && bubble.right <= innerWidth + 1 && bubble.top >= 0 && bubble.bottom <= innerHeight + 1 };
+          });
+          assert(metrics.target && metrics.fits, `${theme} settings step ${i + 1}, width ${width}`);
+          if (i === 0) {
+            await providerTrigger.click();
+            await page.getByRole("link", { name: "DeepSeek官方 API 平台", exact: true }).waitFor();
+            await page.waitForTimeout(200);
+            if (width === 1100) await page.screenshot({ path: path.resolve(__dirname, `../output/playwright/settings-guide-${theme}.png`) });
+            await providerTrigger.click();
+          }
+          await page.getByRole("button", { name: i === 9 ? "完成教程" : "下一步", exact: true }).click();
+        }
+        const beforeData = JSON.parse(configBefore || "{}");
+        const afterData = await page.evaluate(() => JSON.parse(localStorage.getItem("test-storage")));
+        assert.deepEqual(afterData["prompt-butler-extension-settings"], beforeData["prompt-butler-extension-settings"], "Guide must not save/change config");
+      }
       assert.equal(errors.length, 0, errors.join("\n"));
+      assert(!(await page.evaluate(() => window.testRequests)).some(type => /generate|download|provider:test-connection|provider:detect-models/.test(type)), "Guide must not trigger model/provider calls");
       await context.close();
     }
     console.log(process.argv.includes("--settings-only")
-      ? "PASS: unified settings dropdown selection/Escape and manual model IDs in both themes"
-      : "PASS: tutorial in both themes and widths; unified settings dropdown selection/Escape and manual model IDs; no AI calls");
+      ? "PASS: official links do not switch providers; settings guide 10 steps at 420/1100px in both themes; manual model IDs; no provider calls"
+      : "PASS: main tutorial and real settings-page handoff; official links preserve selection; settings guide in both themes and widths; no provider calls");
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

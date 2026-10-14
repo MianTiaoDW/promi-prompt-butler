@@ -507,7 +507,11 @@ export function OverlayApp({
           ) : null}
         </motion.div>
 
-        {tutorialOpen ? <NewUserTutorial rootRef={themeRootRef} onNavigate={navigateTutorial} onClose={() => setTutorialOpen(false)} /> : null}
+        {tutorialOpen ? <NewUserTutorial rootRef={themeRootRef} onNavigate={navigateTutorial} onClose={() => setTutorialOpen(false)} onSettingsTutorial={() => {
+          chrome.runtime.sendMessage({ type: "open-options-page", tutorial: true }, () => {
+            if (chrome.runtime.lastError) window.open(chrome.runtime.getURL("options.html?tutorial=settings"), "_blank", "noopener");
+          });
+        }} /> : null}
         <div className="workspace-toast-position">
         <AnimatePresence>
           {toast ? (

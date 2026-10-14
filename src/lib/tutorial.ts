@@ -1,7 +1,7 @@
 export type TutorialWorkspace = "library" | "identity" | "image" | "folders";
 export const TUTORIAL_SEEN_KEY = "prompt-butler-tutorial-seen-v1";
 export const TUTORIAL_CHAPTERS = ["认识插件与配置", "提示词库", "收藏夹", "创作提示词", "图像工坊"];
-export interface TutorialStep { chapter: number; title: string; text: string; target: string; workspace?: TutorialWorkspace; fallback?: string; }
+export interface TutorialStep { chapter: number; title: string; text: string; target: string; workspace?: TutorialWorkspace; fallback?: string; interactive?: boolean; }
 export const TUTORIAL_STEPS: TutorialStep[] = [
   { chapter: 0, title: "三个工作区", text: "提示词库用来存和找提示词；创作用来把想法写成提示词；图像工坊用来生成图片。点击下一步认识各项功能。", target: ".workspace-navigation" },
   { chapter: 0, title: "先连接模型服务", text: "点击设置进入配置中心，填写服务地址和 API Key，选择文字、视觉和生图模型。保存配置并测试连接成功后，就可以生成。教程不会替你调用模型或产生费用。", target: "[aria-label='打开配置中心']" },

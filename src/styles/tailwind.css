@@ -3778,6 +3778,15 @@
 .image-parameter-menu button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 9px 10px; border: 0; border-radius: 9px; background: transparent; color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; }
 .image-parameter-menu button:hover, .image-parameter-menu button:focus-visible { background: var(--accent-soft); outline: none; }
 .image-parameter-menu button[aria-selected="true"] { background: var(--accent-primary); color: #fff; }
+.image-parameter-option { display: flex; align-items: center; gap: 8px; padding: 8px 10px; min-height: 42px; border-radius: 9px; color: var(--text-primary); cursor: pointer; }
+.image-parameter-option:hover, .image-parameter-option:focus-visible { background: var(--accent-soft); outline: none; }
+.image-parameter-option[aria-selected="true"] { background: var(--accent-primary); color: #fff; }
+.provider-option-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.provider-api-link { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; padding: 6px 9px; border-radius: 8px; background: #0467fb; color: #fff; font-size: 11px; line-height: 1.4; text-decoration: none; }
+.provider-api-link:hover { background: #207aff; }
+.image-parameter-option[aria-selected="true"] .provider-api-link { background: rgba(255, 255, 255, .2); }
+.image-parameter-option[aria-selected="true"] .provider-api-link:hover { background: rgba(255, 255, 255, .32); }
+.provider-api-unavailable { flex-shrink: 0; padding: 6px 9px; font-size: 11px; opacity: .6; }
 .settings-parameter-select > span { margin-bottom: var(--space-2); color: var(--text-secondary); font-size: 14px; font-weight: 500; }
 .settings-parameter-select .image-parameter-trigger { min-height: 46px; font-size: 14px; }
 .model-combobox:has(.image-parameter-menu) { z-index: 20; }
@@ -3884,6 +3893,10 @@
   isolation: isolate;
   overflow: hidden;
 }
+.new-user-tutorial.is-page-guide { position: fixed; z-index: 10000; }
+.new-user-tutorial.is-interactive, .new-user-tutorial.is-interactive .tutorial-spotlight { pointer-events: none; }
+.new-user-tutorial.is-interactive .tutorial-shade, .new-user-tutorial.is-interactive .tutorial-bubble { pointer-events: auto; }
+.settings-tutorial-launcher { width: 34px; height: 34px; min-width: 34px; }
 .tutorial-shade {
   position: absolute;
   background: rgba(0, 0, 0, .52);

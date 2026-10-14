@@ -1,5 +1,9 @@
 import { useTheme } from "../hooks/useTheme";
 import { ImageParameterSelect } from "../content/ImageParameterSelect";
+import { NewUserTutorial } from "../content/NewUserTutorial";
+import { SETTINGS_TUTORIAL_STEPS } from "../lib/settings-tutorial";
+import { PROVIDER_API_LINKS } from "../lib/provider-api-links";
+import { TutorialBook } from "../components/PromiIcons";
 import { confirmInputOnBlankClick, confirmInputOnEnter, startInputComposition, finishInputComposition } from "../lib/enter-confirm";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -46,7 +50,7 @@ function ExampleImageStorageSettings() {
     }
   };
   return (
-    <div className="settings-form-section">
+    <div className="settings-form-section" data-settings-guide="image-storage">
       <div className="settings-section-heading"><h3>示例图存储</h3><p>只保存用户主动添加的压缩预览图，软上限为 30MB。</p></div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/15 p-4">
         <div><strong className="text-sm text-primary">已使用 {formatMegabytes(usage.usedBytes)} / {formatMegabytes(usage.limitBytes)}</strong><p className="mt-1 text-xs text-tertiary">共 {usage.imageCount} 张示例图</p></div>
@@ -178,7 +182,8 @@ function formatTestTime(timestamp: string | null) {
 }
 
 export function OptionsApp() {
-  useTheme();
+  const { rootRef: guideRootRef } = useTheme();
+  const [settingsTutorialOpen, setSettingsTutorialOpen] = useState(() => new URLSearchParams(window.location.search).get("tutorial") === "settings");
   const shouldReduceMotion = useReducedMotion();
   const showUnsupportedNotice = new URLSearchParams(window.location.search).get("notice") === "unsupported";
   const { settings, isLoading, error, updateSettings } = useExtensionSettings();
@@ -393,7 +398,7 @@ export function OptionsApp() {
         : "text-secondary";
 
   return (
-    <main data-enter-confirm onKeyDown={confirmInputOnEnter} onPointerDownCapture={confirmInputOnBlankClick} onCompositionStartCapture={startInputComposition} onCompositionEndCapture={finishInputComposition} className="settings-page min-h-screen bg-canvas text-primary">
+    <main ref={guideRootRef} data-enter-confirm onKeyDown={confirmInputOnEnter} onPointerDownCapture={confirmInputOnBlankClick} onCompositionStartCapture={startInputComposition} onCompositionEndCapture={finishInputComposition} className="settings-page min-h-screen bg-canvas text-primary">
       <header className="settings-app-bar">
         <div className="mx-auto flex h-full w-full max-w-6xl items-center justify-between gap-4 px-6 md:px-8">
           <div className="flex min-w-0 items-center gap-3">
@@ -403,10 +408,13 @@ export function OptionsApp() {
               <div className="text-xs text-tertiary">设置 / 模型连接</div>
             </div>
           </div>
+          <div className="flex shrink-0 items-center gap-2">
+          <button type="button" className="icon-button settings-tutorial-launcher" title="设置教程" aria-label="打开设置教程" onClick={() => setSettingsTutorialOpen(true)}><TutorialBook className="h-4 w-4" /></button>
           <button type="button" onClick={returnToBrowser} className="ghost-button h-10 shrink-0 px-3">
             <ArrowLeft className="h-4 w-4" />
             返回主界面
           </button>
+          </div>
         </div>
       </header>
 
@@ -466,9 +474,10 @@ export function OptionsApp() {
                 <p>用于连接模型服务的服务商、凭证与地址。</p>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <ImageParameterSelect className="settings-parameter-select" label="服务商" value={draftSettings.provider}
-                  options={providerOptions.map(option => ({ value: option.id, label: option.label }))}
+                <div data-settings-guide="provider"><ImageParameterSelect className="settings-parameter-select settings-provider-select" label="服务商" value={draftSettings.provider}
+                  options={providerOptions.map(option => ({ value: option.id, label: option.label, href: PROVIDER_API_LINKS[option.id] ?? undefined, linkLabel: "API 平台" }))}
                   onChange={value => handleProviderChange(value as ExtensionSettings["provider"])} />
+                </div>
 
                 <label className="block">
                   <span className="settings-field-label">
@@ -483,6 +492,7 @@ export function OptionsApp() {
                       value={draftSettings.apiKey}
                       onChange={(event) => updateConnectionDraft({ apiKey: event.target.value })}
                       placeholder="输入 API Key"
+                      data-settings-guide="api-key"
                       className="form-field settings-control pr-[76px]"
                     />
                     <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center">
@@ -518,6 +528,7 @@ export function OptionsApp() {
                       lastModelDetectionAt: null
                     })}
                     placeholder="输入或覆盖默认 Base URL"
+                    data-settings-guide="base-url"
                     className="form-field settings-control"
                   />
                 </label>
@@ -542,6 +553,7 @@ export function OptionsApp() {
                       value={draftSettings.imageApiKey}
                       onChange={(event) => updateImageConnectionDraft({ imageApiKey: event.target.value })}
                       placeholder="输入生图专用 API Key"
+                      data-settings-guide="image-api-key"
                       className="form-field settings-control pr-[76px]"
                     />
                     <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center">
@@ -573,6 +585,7 @@ export function OptionsApp() {
                     value={draftSettings.imageBaseUrl}
                     onChange={(event) => updateImageConnectionDraft({ imageBaseUrl: event.target.value })}
                     placeholder="留空则使用通用 Base URL"
+                    data-settings-guide="image-base-url"
                     className="form-field settings-control"
                   />
                 </label>
@@ -582,7 +595,7 @@ export function OptionsApp() {
               </p>
             </div>
 
-            <div className="settings-form-section">
+            <div className="settings-form-section" data-settings-guide="models">
               <div className="settings-section-heading">
                 <h3>模型用途</h3>
                 <p>输入框支持从识别结果中搜索选择，也可以直接填写模型 ID。</p>
@@ -604,7 +617,7 @@ export function OptionsApp() {
               </div>
             </div>
 
-            <div className="settings-form-section">
+            <div className="settings-form-section" data-settings-guide="image-output">
               <div className="settings-section-heading">
                 <h3>图像输出</h3>
                 <p>作为图像工坊的默认生成参数。</p>
@@ -665,7 +678,7 @@ export function OptionsApp() {
           </article>
 
           <aside className="min-w-0 self-start space-y-4 lg:sticky lg:top-24">
-            <article className="glass-card p-5 md:p-6">
+            <article className="glass-card p-5 md:p-6" data-settings-guide="status">
               <div className="flex items-center gap-3">
                 <div className="settings-status-icon"><DatabaseZap className="h-5 w-5" /></div>
                 <div>
@@ -713,7 +726,7 @@ export function OptionsApp() {
             <article className="glass-card settings-side-card">
               <div className="settings-side-card-heading">
                 <BrainCircuit className="h-4 w-4" />
-                <h2>模型能力</h2>
+                <h2 data-settings-guide="capabilities">模型能力</h2>
               </div>
               <dl className="settings-capability-list">
                 <div><dt>文本模型</dt><dd>{draftSettings.reasoningModel || "未设置"}</dd></div>
@@ -741,6 +754,10 @@ export function OptionsApp() {
         </section>
       </motion.div>
 
+      {settingsTutorialOpen && !isLoading ? <NewUserTutorial rootRef={guideRootRef} onNavigate={() => {}} onClose={() => {
+        setSettingsTutorialOpen(false);
+        showToast("以后可点击顶部书本图标，再次查看设置教程");
+      }} steps={SETTINGS_TUTORIAL_STEPS} chapters={["设置与模型接入"]} initialIndex={0} pageGuide seenKey="prompt-butler-settings-tutorial-seen-v1" /> : null}
       <div className="settings-toast-position">
       <AnimatePresence>
         {toastMessage ? (

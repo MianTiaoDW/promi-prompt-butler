@@ -95,6 +95,7 @@ export interface DetectProviderModelsMessage {
 
 export interface OpenOptionsPageMessage {
   type: "open-options-page";
+  tutorial?: boolean;
 }
 
 export interface CancelImageGenerationMessage {

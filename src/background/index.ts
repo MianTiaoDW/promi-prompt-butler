@@ -262,7 +262,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeRequestMessage, _sender, s
       }
 
       if (message.type === "open-options-page") {
-        await chrome.tabs.create({ url: chrome.runtime.getURL("options.html") });
+        await chrome.tabs.create({ url: chrome.runtime.getURL(message.tutorial ? "options.html?tutorial=settings" : "options.html") });
         sendResponse({ ok: true });
         return;
       }

@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown } from "../components/PromiIcons";
+import { ArrowUpRight, Check, ChevronDown } from "../components/PromiIcons";
 
 export function ImageParameterSelect({ label, value, options, onChange, className = "" }: {
   label: string;
   value: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; href?: string; linkLabel?: string }[];
   onChange: (value: string) => void;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const items = useRef<(HTMLButtonElement | null)[]>([]);
+  const items = useRef<(HTMLElement | null)[]>([]);
   useEffect(() => {
     if (!open) return;
     items.current[Math.max(0, options.findIndex(option => option.value === value))]?.focus();
@@ -42,7 +42,18 @@ export function ImageParameterSelect({ label, value, options, onChange, classNam
       else return;
       event.preventDefault(); items.current[next]?.focus();
     }}>
-      {options.map((option, index) => <button ref={element => { items.current[index] = element; }} key={option.value} type="button" role="option" aria-selected={option.value === value} onClick={() => {
+      {options.map((option, index) => option.linkLabel ? <div key={option.value} ref={element => { items.current[index] = element; }} className="image-parameter-option" role="option" aria-selected={option.value === value} tabIndex={-1} onClick={() => {
+        onChange(option.value); setOpen(false); trigger.current?.focus();
+      }} onKeyDown={event => {
+        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault(); onChange(option.value); setOpen(false); trigger.current?.focus();
+        }
+      }}>
+        <span className="provider-option-name">{option.label}</span>
+        {option.value === value ? <Check className="h-4 w-4 shrink-0" /> : null}
+        {option.href ? <a className="provider-api-link" href={option.href} target="_blank" rel="noopener noreferrer" aria-label={`${option.label}官方 API 平台`} title={`打开${option.label}官方 API 平台`} onClick={event => event.stopPropagation()}>{option.linkLabel}<ArrowUpRight className="h-3 w-3" /></a>
+          : <span className="provider-api-unavailable" title="中转站不是单一平台，请到你使用的服务商网站创建密钥">自选平台</span>}
+      </div> : <button ref={element => { items.current[index] = element; }} key={option.value} type="button" role="option" aria-selected={option.value === value} onClick={() => {
         onChange(option.value); setOpen(false); trigger.current?.focus();
       }}>{option.label}{option.value === value ? <Check className="h-4 w-4" /> : null}</button>)}
     </div> : null}
