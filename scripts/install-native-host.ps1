@@ -1,4 +1,5 @@
 param(
+  [ValidatePattern('^[a-p]{32}$')]
   [string]$ExtensionId = "kacphaiefjcgokdfakpjdpjplfpnkpai",
   [string]$InstallDirectory = (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonDocuments)) ("PromptButler\NativeHost\" + [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value))
 )
