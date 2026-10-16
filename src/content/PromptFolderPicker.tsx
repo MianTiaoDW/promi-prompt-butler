@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { FolderColorPicker } from "./FolderColorPicker";
+import { getFolderColor } from "../lib/folder-colors";
 import { Check, Folder, Plus, X } from "../components/PromiIcons";
 import { useModalFocus } from "../hooks/useModalFocus";
 import { createPromptFolder } from "../lib/prompt-library";
@@ -13,6 +15,7 @@ export function PromptFolderPicker({ record, folders, onClose, onConfirm }: {
 }) {
   const [selectedId, setSelectedId] = useState("");
   const [name, setName] = useState("");
+  const [color, setColor] = useState("blue");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const close = () => { if (!busy) onClose(); };
@@ -22,7 +25,7 @@ export function PromptFolderPicker({ record, folders, onClose, onConfirm }: {
     setBusy(true);
     setError("");
     try {
-      const folder = await createPromptFolder(name, "收藏");
+      const folder = await createPromptFolder(name, "收藏", color);
       setSelectedId(folder.id);
       setName("");
     } catch (error) { setError(error instanceof Error ? error.message : "新建收藏夹失败，请重试。"); }
@@ -42,12 +45,13 @@ export function PromptFolderPicker({ record, folders, onClose, onConfirm }: {
       <header><div><h2>收藏到文件夹</h2><p>{record.title || record.content.slice(0, 32)}</p></div><button type="button" className="icon-button" aria-label="关闭文件夹选择" disabled={busy} onClick={close}><X className="h-4 w-4" /></button></header>
       <div className="prompt-folder-picker-list" role="radiogroup" aria-label="选择收藏夹">
         {folders.map((folder) => <button key={folder.id} type="button" role="radio" aria-checked={selectedId === folder.id} disabled={busy} onClick={() => setSelectedId(folder.id)} className={selectedId === folder.id ? "is-selected" : ""}>
-          <Folder className="h-4 w-4 shrink-0" /><span>{folder.name}{belongsToFolder(record, folder) ? <small>已在此收藏夹</small> : null}</span>{selectedId === folder.id ? <Check className="h-4 w-4 shrink-0" /> : null}
+          <Folder className="h-4 w-4 shrink-0" style={{ color: getFolderColor(folder.color).front }} /><span>{folder.name}{belongsToFolder(record, folder) ? <small>已在此收藏夹</small> : null}</span>{selectedId === folder.id ? <Check className="h-4 w-4 shrink-0" /> : null}
         </button>)}
         {folders.length === 0 ? <p className="text-sm text-white/55">还没有收藏夹，在下方新建一个。</p> : null}
       </div>
       <form data-enter-confirm className="prompt-folder-picker-create" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}>
         <label htmlFor="prompt-new-folder-name">新建收藏夹</label>
+        <FolderColorPicker value={color} onChange={setColor} disabled={busy} />
         <div><input id="prompt-new-folder-name" className="form-field" placeholder="收藏夹名称" value={name} disabled={busy} onChange={(event) => setName(event.target.value)} /><button className="gradient-button px-3 py-2 text-sm" data-enter-submit type="submit" disabled={busy || !name.trim()}><Plus className="h-4 w-4" />新建并选中</button></div>
       </form>
       {error ? <p role="alert" className="text-sm text-rose-300">{error}</p> : null}

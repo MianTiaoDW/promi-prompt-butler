@@ -1,6 +1,7 @@
 import { storageGet, storageSet } from "./storage";
 import { DEFAULT_PROMPT_SEEDS, RETIRED_SEED_IDS } from "./seed-prompts";
 import { formatPromptGroup } from "./prompt-group";
+import { validateFolderColor } from "./folder-colors";
 import type {
   PromptFolder,
   PromptOutputFormat,
@@ -263,7 +264,8 @@ export async function updateFavoritePrompt(
   return savedRecords.find((record) => record.id === promptId) ?? null;
 }
 
-export async function createPromptFolder(name: string, scope: string) {
+export async function createPromptFolder(name: string, scope: string, color = "blue") {
+  const validatedColor = validateFolderColor(color);
   const trimmedName = name.trim();
 
   if (!trimmedName) {
@@ -279,6 +281,7 @@ export async function createPromptFolder(name: string, scope: string) {
   const scopeFolders = existing;
   const nextOrder = scopeFolders.length === 0 ? 0 : Math.max(...scopeFolders.map((folder) => folder.order ?? 0)) + 1;
   const folder: PromptFolder = {
+    color: validatedColor,
     id: `folder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: trimmedName,
     scope,
@@ -288,6 +291,15 @@ export async function createPromptFolder(name: string, scope: string) {
 
   await storageSet(PROMPT_STORAGE_KEYS.folders, [...existing, folder], existing);
   return folder;
+}
+
+export async function updatePromptFolderColor(folderId: string, color: string) {
+  const validatedColor = validateFolderColor(color);
+  const existing = await storageGet<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []);
+  if (!existing.some((folder) => folder.id === folderId)) throw new Error("收藏夹已删除。");
+  return storageSet(PROMPT_STORAGE_KEYS.folders, existing.map((folder) =>
+    folder.id === folderId ? { ...folder, color: validatedColor } : folder
+  ), existing);
 }
 
 export async function renamePromptFolder(folderId: string, name: string) {

@@ -7,10 +7,12 @@ import { dataUrlToObjectUrl, getExampleImagePayload } from "../lib/example-image
 import { getPromptGroup, isCollectedPrompt } from "../lib/prompt-group";
 import { ArrowUpToLine, Check, Copy, Eye, FolderPlus, GripVertical, Images, LoaderCircle, Sparkles, Trash2 } from "../components/PromiIcons";
 
-import type { SavedPromptRecord } from "../types/prompt";
+import type { PromptFolder, SavedPromptRecord } from "../types/prompt";
+import { getFolderColor } from "../lib/folder-colors";
 
 interface PromptCardProps {
   record: SavedPromptRecord;
+  folders: PromptFolder[];
   isCopied: boolean;
   isFavorite: boolean;
   isOptimizing: boolean;
@@ -33,6 +35,7 @@ interface PromptCardProps {
 
 export function PromptCard({
   record,
+  folders,
   isCopied,
   isFavorite,
   isOptimizing,
@@ -82,6 +85,12 @@ export function PromptCard({
       transition={{ type: "spring", stiffness: 420, damping: 23, mass: 0.8 }}
       className={`prompt-asset-card ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${isPreview ? "is-sort-preview" : ""}`}
       onDragOver={onDragOver} onDrop={onDrop}>
+      {folders.length > 0 ? <div className="prompt-card-folder-colors" aria-label="所属收藏夹">
+        {folders.map((folder) => <span key={folder.id} role="img"
+          className="folder-color-dot" style={{ backgroundColor: getFolderColor(folder.color).front }}
+          title={`${folder.name} · ${getFolderColor(folder.color).name}`}
+          aria-label={`收藏夹：${folder.name}，${getFolderColor(folder.color).name}`} />)}
+      </div> : null}
       <div className="flex min-w-0 flex-1 gap-4">
       <button type="button" className="prompt-card-open" onClick={onOpen}>
         <h3>{title}</h3>

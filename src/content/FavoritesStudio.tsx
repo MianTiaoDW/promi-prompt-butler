@@ -1,4 +1,5 @@
 import { CollectionFolder } from "./CollectionFolder";
+import { FolderColorMenu, FolderColorPicker } from "./FolderColorPicker";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { createPortal } from "react-dom";
@@ -68,6 +69,7 @@ export function FavoritesStudio(props: {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [folderNameDraft, setFolderNameDraft] = useState("");
+  const [folderColorDraft, setFolderColorDraft] = useState("blue");
   const [hoveredFolderId, setHoveredFolderId] = useState<string | null>(null);
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
@@ -244,7 +246,7 @@ export function FavoritesStudio(props: {
 
   const handleCreateFolder = async () => {
     try {
-      const folder = await createPromptFolder(folderNameDraft, "收藏");
+      const folder = await createPromptFolder(folderNameDraft, "收藏", folderColorDraft);
       await setFolders((current) => current.some((item) => item.id === folder.id) ? current : [...current, folder]);
       setSelectedFolderId(null);
       setIsCreatingFolder(false);
@@ -595,6 +597,7 @@ export function FavoritesStudio(props: {
         <div className="prompt-asset-grid">
           {previewOrder(records, draggingPromptId).map((record, index) => (
             <PromptCard
+              folders={folders.filter((folder) => belongsToFolder(record, folder)).sort((left, right) => left.order - right.order)}
               key={record.id}
               record={record}
               isCopied={copiedId === record.id}
@@ -686,12 +689,13 @@ export function FavoritesStudio(props: {
           <header>
             <div><h2>我的收藏夹</h2><span>{scopedFolders.length}</span></div>
             <div>
-              <button type="button" onClick={() => { setIsCreatingFolder(true); setFolderNameDraft(""); }} title="新建收藏夹"><Plus className="h-4 w-4" /></button>
+              <button type="button" onClick={() => { setIsCreatingFolder(true); setFolderNameDraft(""); setFolderColorDraft("blue"); }} title="新建收藏夹"><Plus className="h-4 w-4" /></button>
             </div>
           </header>
           {isCreatingFolder ? (
             <div data-enter-confirm className="prompt-folder-create-row">
               <input className="folder-create-input" aria-label="新建收藏夹名称" value={folderNameDraft} onChange={(event) => setFolderNameDraft(event.target.value)} placeholder="收藏夹名称" autoFocus />
+              <FolderColorPicker value={folderColorDraft} onChange={setFolderColorDraft} />
               <button type="button" className="folder-create-confirm" aria-label="确认新建收藏夹" data-enter-submit onClick={() => void handleCreateFolder()} disabled={!folderNameDraft.trim()}><Check className="h-4 w-4" /></button>
               <button type="button" className="folder-create-cancel" aria-label="取消新建收藏夹" onClick={() => { setIsCreatingFolder(false); setFolderNameDraft(""); }}><X className="h-4 w-4" /></button>
             </div>
@@ -732,7 +736,7 @@ export function FavoritesStudio(props: {
                     void commitDrop(() => moveFolder(sourceId, dropTargetId ?? folder.id));
                   }}>
                   <CollectionFolder
-                    name={folder.name} records={folderRecords} disabled={Boolean(draggingFolderId) || isRenaming}
+                    name={folder.name} color={folder.color} records={folderRecords} disabled={Boolean(draggingFolderId) || isRenaming}
                     onOpen={() => { if (!isRenaming && !draggingFolderId && Date.now() - folderDragEndedAt.current > 250) setSelectedFolderId(folder.id); }}
                     onRename={() => { cancelFolderRename.current = false; setRenamingFolderId(folder.id); setFolderNameDraft(folder.name); }}
                     onHover={(open) => setHoveredFolderId((current) => open ? folder.id : current === folder.id ? null : current)}
@@ -742,7 +746,7 @@ export function FavoritesStudio(props: {
                       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancelFolderRename.current = true; setRenamingFolderId(null); setFolderNameDraft(""); }
                     }} /> : undefined}
                   />
-                  {!isRenaming ? <div className="collection-folder-actions"><button type="button" onClick={() => void handleDeleteFolder(folder)} title="删除" aria-label={`删除收藏夹 ${folder.name}`}><Trash2 className="h-3.5 w-3.5" /></button></div> : null}
+                  {!isRenaming ? <div className="collection-folder-actions"><FolderColorMenu folder={folder} /><button type="button" onClick={() => void handleDeleteFolder(folder)} title="删除" aria-label={`删除收藏夹 ${folder.name}`}><Trash2 className="h-3.5 w-3.5" /></button></div> : null}
                 </motion.article>
               );
             })}

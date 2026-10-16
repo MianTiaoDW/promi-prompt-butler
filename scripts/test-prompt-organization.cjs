@@ -5,12 +5,16 @@ const esbuild = require("esbuild");
 
 (async () => {
   const result = await esbuild.build({
-    stdin: { contents: 'export * from "./src/lib/prompt-organization"; export * from "./src/lib/prompt-library"; export { storageSet } from "./src/lib/storage"; export { importPromptsFromFile } from "./src/lib/backup";', resolveDir: path.resolve(__dirname, "..") },
+    stdin: { contents: 'export * from "./src/lib/folder-colors"; export * from "./src/lib/prompt-organization"; export * from "./src/lib/prompt-library"; export { storageSet } from "./src/lib/storage"; export { importPromptsFromFile } from "./src/lib/backup";', resolveDir: path.resolve(__dirname, "..") },
     bundle: true, write: false, platform: "node", format: "cjs"
   });
   const loaded = { exports: {} };
   new Function("module", "exports", "require", result.outputFiles[0].text)(loaded, loaded.exports, require);
   const api = loaded.exports;
+  assert.deepEqual(api.FOLDER_COLORS.map(color => color.id), ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "black", "white", "gray"]);
+  assert.equal(api.getFolderColor().id, "blue", "Old folders remain blue after adding colors before blue in the palette");
+  assert.equal(api.getFolderColor("unknown").id, "blue", "Unknown imported colors use the legacy blue fallback");
+  assert.notEqual(api.getFolderColor("white").ink, "#ffffff", "White folders and selection marks use dark text");
   const data = {};
   global.chrome = { storage: { local: { get: async key => ({ [key]: structuredClone(data[key]) }), set: async values => Object.assign(data, structuredClone(values)) } } };
   const key = api.PROMPT_STORAGE_KEYS.favorites;
@@ -41,8 +45,19 @@ const esbuild = require("esbuild");
   assert.deepEqual(api.sortPromptRecords(data[key]).map(r => r.id), ["d", "c", "b", "a"], "Favorite/search reorder preserves hidden slots");
   const saved = await api.savePromptToFavorites(base);
   assert.equal(api.sortPromptRecords(data[key]).at(-1).id, saved.id, "New prompts append after the manual sequence");
-  const folder1 = await api.createPromptFolder("First", "旧分类");
+  const folder1 = await api.createPromptFolder("First", "旧分类", "red");
   const folder2 = await api.createPromptFolder("Second", "收藏");
+  assert.equal(folder1.color, "red", "New folders keep the chosen color");
+  assert.equal(folder2.color, "blue", "Folders default to the existing blue");
+  await assert.rejects(api.updatePromptFolderColor(folder1.id, "not-a-color"), /有效的收藏夹颜色/);
+  assert.equal(data[folderKey].find(f => f.id === folder1.id).color, "red", "Invalid colors do not change stored data");
+  await api.updatePromptFolderColor(folder1.id, "purple");
+  assert.equal(data[folderKey].find(f => f.id === folder1.id).color, "purple", "Changing folder color persists without changing membership");
+  for (const color of ["cyan", "black", "white"]) {
+    await api.updatePromptFolderColor(folder1.id, color);
+    assert.equal(data[folderKey].find(f => f.id === folder1.id).color, color);
+  }
+  await api.updatePromptFolderColor(folder1.id, "purple");
   await api.reorderPromptFolders(null, [folder2.id, folder1.id]);
   assert.deepEqual([...data[folderKey]].sort((a, b) => a.order - b.order).map(f => f.id), [folder2.id, folder1.id], "Folder ordering crosses old category scopes");
   const original = data[key].find(r => r.id === "a");
@@ -65,6 +80,7 @@ const esbuild = require("esbuild");
   await api.importPromptsFromFile(new File([JSON.stringify(backup)], "backup.json"), "replace");
   assert.deepEqual(api.sortPromptRecords(data[key]).map(r => r.id), api.sortPromptRecords(backup.favorites).map(r => r.id), "Backup restores manual ordering");
   assert.deepEqual(data[key].find(r => r.id === "legacy").folderIds, [folder1.id], "Backup restores folder membership");
+  assert.equal(data[folderKey].find(f => f.id === folder1.id).color, "purple", "Backup restores folder colors");
   const group = { notes: "", steps: [{ name: "去掉重复序号", content: "修改后的正文" }] };
   await Promise.all([
     api.updateFavoritePrompt("a", { group, content: "修改后的正文" }),

@@ -138,6 +138,7 @@ export interface PromptWorkspaceState {
 }
 
 export interface PromptFolder {
+  color?: string;
   id: string;
   name: string;
   scope: string;
