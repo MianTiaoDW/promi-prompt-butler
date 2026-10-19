@@ -1,7 +1,7 @@
 import { FavoriteButton } from "./FavoriteButton";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Copy, Eye, Image, PencilLine, Plus, Sparkles, Trash2, X } from "../components/PromiIcons";
+import { Check, ChevronDown, Close, Copy, Eye, Image, PencilLine, Plus, Sparkles, X } from "../components/PromiIcons";
 
 import type { PromptGroup, PromptOutputFormat, SavedPromptRecord } from "../types/prompt";
 import { useModalFocus } from "../hooks/useModalFocus";
@@ -61,6 +61,7 @@ export function PromptPreviewModal({
   const [exampleUrls, setExampleUrls] = useState<Record<string, string | null>>({});
   const [previewExample, setPreviewExample] = useState<{ id: string; url: string } | null>(null);
   const [replaceMode, setReplaceMode] = useState(false);
+  const [isUpdatingExamples, setIsUpdatingExamples] = useState(false);
   const replaceIndexRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
@@ -98,8 +99,8 @@ export function PromptPreviewModal({
   }, [exampleIds]);
 
   const persistIds = async (ids: string[]) => {
-    setExampleIds(ids);
     await updateFavoritePrompt(record!.id, { exampleImageIds: ids, imageStorageVersion: 2, linkedImages: [] });
+    setExampleIds(ids);
   };
 
   const handleFiles = async (files: FileList | null) => {
@@ -140,19 +141,26 @@ export function PromptPreviewModal({
   };
 
   const deleteAt = async (index: number) => {
-    const imageId = exampleIds[index];
-    await deleteExampleImageAsset(imageId);
-    await persistIds(exampleIds.filter((_, itemIndex) => itemIndex !== index));
-    setPreviewExample(null);
-    showToast("示例图已删除");
+    if (isUpdatingExamples) return;
+    setIsUpdatingExamples(true);
+    try {
+      const imageId = exampleIds[index];
+      await deleteExampleImageAsset(imageId);
+      await persistIds(exampleIds.filter((_, itemIndex) => itemIndex !== index));
+      setPreviewExample(null);
+      showToast("示例图已删除");
+    } catch { showToast("删除示例图失败，请重试", "error"); }
+    finally { setIsUpdatingExamples(false); }
   };
 
-  const moveImage = async (index: number, direction: -1 | 1) => {
-    const target = index + direction;
-    if (target < 0 || target >= exampleIds.length) return;
-    const next = [...exampleIds];
-    [next[index], next[target]] = [next[target], next[index]];
-    await persistIds(next);
+  const setCoverImage = async (imageId: string) => {
+    if (isUpdatingExamples || exampleIds[0] === imageId) return;
+    setIsUpdatingExamples(true);
+    try {
+      await persistIds([imageId, ...exampleIds.filter(id => id !== imageId)]);
+      showToast("已更新卡片示例图");
+    } catch { showToast("设置示例图失败，请重试", "error"); }
+    finally { setIsUpdatingExamples(false); }
   };
 
   const toggleSection = (format: PromptOutputFormat) => {
@@ -249,16 +257,15 @@ export function PromptPreviewModal({
                     {exampleIds.map((imageId, index) => {
                       const url = exampleUrls[imageId];
                       return (
-                        <div key={imageId} className={`group relative aspect-[4/3] overflow-hidden rounded-xl border ${replaceMode ? "border-accent/50" : "border-white/10"} bg-black/25`}>
-                          {url ? <img src={url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" onError={() => setExampleUrls((current) => ({ ...current, [imageId]: null }))} /> : <div className="flex h-full items-center justify-center px-2 text-center text-xs text-white/45">{url === undefined ? "加载中…" : <>图片不可用<br />请重新上传</>}</div>}
-                          <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/65 opacity-0 transition group-hover:opacity-100">
-                            {replaceMode ? <button type="button" className="ghost-button px-2 py-1 text-xs" onClick={() => replaceAt(index)}>替换此图</button> : <>
-                              {url ? <button type="button" aria-label="查看" onClick={() => setPreviewExample({ id: imageId, url })}><Eye className="h-4 w-4" /></button> : <button type="button" onClick={() => replaceAt(index)}><Plus className="h-4 w-4" /></button>}
-                              <button type="button" aria-label="左移" disabled={index === 0} onClick={() => void moveImage(index, -1)}><ArrowLeft className="h-4 w-4" /></button>
-                              <button type="button" aria-label="右移" disabled={index === exampleIds.length - 1} onClick={() => void moveImage(index, 1)}><ArrowRight className="h-4 w-4" /></button>
-                              <button type="button" aria-label="删除" onClick={() => void deleteAt(index)}><Trash2 className="h-4 w-4" /></button>
-                            </>}
+                        <div key={imageId} className="prompt-example-item">
+                          <div className={`prompt-example-image ${replaceMode ? "is-replacing" : ""}`}>
+                            <button type="button" className="prompt-example-view" aria-label={replaceMode ? `替换示例图 ${index + 1}` : `查看示例图 ${index + 1}`} disabled={isUpdatingExamples || (!url && !replaceMode)} onClick={() => replaceMode ? replaceAt(index) : url && setPreviewExample({ id: imageId, url })}>
+                              {url ? <img src={url} alt={`示例图 ${index + 1}`} loading="lazy" decoding="async" onError={() => setExampleUrls((current) => ({ ...current, [imageId]: null }))} /> : <span className="prompt-example-unavailable">{url === undefined ? "加载中…" : "图片不可用，请重新上传"}</span>}
+                              <span className="prompt-example-eye">{replaceMode ? "替换此图" : <Eye className="h-5 w-5" />}</span>
+                            </button>
+                            <button type="button" className="prompt-example-delete" aria-label={`删除示例图 ${index + 1}`} title="删除示例图" disabled={isUpdatingExamples} onClick={() => void deleteAt(index)}><Close className="h-3.5 w-3.5" /></button>
                           </div>
+                          <button type="button" className="prompt-example-cover" aria-pressed={index === 0} title={index === 0 ? "当前卡片显示此图" : "在外面的卡片上显示此图"} disabled={isUpdatingExamples || !url} onClick={() => void setCoverImage(imageId)}>设为示例图</button>
                         </div>
                       );
                     })}
