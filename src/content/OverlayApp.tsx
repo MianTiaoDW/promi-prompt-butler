@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowUp, Pin, Search, Settings, TutorialBook, X } from "../components/PromiIcons";
 import { NewUserTutorial } from "./NewUserTutorial";
-import { TUTORIAL_SEEN_KEY, type TutorialWorkspace } from "../lib/tutorial";
+import { TUTORIAL_SEEN_KEY, TUTORIAL_STEPS, type TutorialWorkspace } from "../lib/tutorial";
 
 import { confirmInputOnBlankClick, confirmInputOnEnter, startInputComposition, finishInputComposition } from "../lib/enter-confirm";
 import { FavoritesStudio } from "./FavoritesStudio";
@@ -68,7 +68,19 @@ export function OverlayApp({
       : iconAssetPath;
   const { rootRef: themeRootRef, mode: themeMode, setMode: setThemeMode } = useTheme();
   const [activeTab, setActiveTab] = useState<string>("角色设定");
-  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [tutorialInitialIndex, setTutorialInitialIndex] = useState(() => {
+    if (!appWindow) return null;
+    const chapter = new URLSearchParams(window.location.search).get("tutorialChapter");
+    const index = chapter === null ? -1 : TUTORIAL_STEPS.findIndex(step => String(step.chapter) === chapter);
+    return index < 0 ? null : index;
+  });
+  const [tutorialOpen, setTutorialOpen] = useState(tutorialInitialIndex !== null);
+  useEffect(() => {
+    if (tutorialInitialIndex === null) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("tutorialChapter");
+    window.history.replaceState(null, "", url);
+  }, [tutorialInitialIndex]);
   useEffect(() => {
     let cancelled = false;
     void storageGet(TUTORIAL_SEEN_KEY, false).then(seen => {
@@ -507,7 +519,7 @@ export function OverlayApp({
           ) : null}
         </motion.div>
 
-        {tutorialOpen ? <NewUserTutorial rootRef={themeRootRef} onNavigate={navigateTutorial} onClose={() => setTutorialOpen(false)} onSettingsTutorial={() => {
+        {tutorialOpen ? <NewUserTutorial rootRef={themeRootRef} initialIndex={tutorialInitialIndex} onNavigate={navigateTutorial} onClose={() => { setTutorialOpen(false); setTutorialInitialIndex(null); }} onSettingsTutorial={() => {
           chrome.runtime.sendMessage({ type: "open-options-page", tutorial: true }, () => {
             if (chrome.runtime.lastError) window.open(chrome.runtime.getURL("options.html?tutorial=settings"), "_blank", "noopener");
           });

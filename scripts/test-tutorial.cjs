@@ -42,7 +42,7 @@ const { chromium } = require("playwright");
           runtime: {
             getURL: name => location.origin + "/" + name,
             sendNativeMessage: async () => ({ ok: false, message: "Test has no native access" }),
-            sendMessage: (message, callback) => { window.testRequests.push(message.type); if (message.type === "open-options-page" && message.tutorial) window.open(location.origin + "/options.html?tutorial=settings", "_blank"); callback?.({ ok: true, images: [], assets: [], records: [], totalBytes: 0, usage: { usedBytes: 0, limitBytes: 30 * 1024 * 1024, imageCount: 0 } }); },
+            sendMessage: (message, callback) => { window.testRequests.push(message.type); if (message.type === "open-options-page" && message.tutorial) window.open(location.origin + "/options.html?tutorial=settings", "_blank"); if (message.type === "tutorial:open-main") window.open(location.origin + "/options.html?view=app&tutorialChapter=" + message.chapter, "_blank"); callback?.({ ok: true, images: [], assets: [], records: [], totalBytes: 0, usage: { usedBytes: 0, limitBytes: 30 * 1024 * 1024, imageCount: 0 } }); },
             onMessage: { addListener() {}, removeListener() {} }
           }
         };
@@ -181,11 +181,35 @@ const { chromium } = require("playwright");
         assert.deepEqual(afterData["prompt-butler-extension-settings"], beforeData["prompt-butler-extension-settings"], "Guide must not save/change config");
       }
       assert.equal(errors.length, 0, errors.join("\n"));
+      await page.getByRole("button", { name: "打开设置教程" }).click();
+      await page.getByRole("button", { name: "选择章节", exact: true }).click();
+      const chapters = ["认识插件与配置", "提示词库", "收藏夹", "创作提示词", "图像工坊", "设置与模型接入"];
+      for (const title of chapters) assert.equal(await page.locator(".tutorial-chapters").getByRole("button", { name: new RegExp(title) }).count(), 1, `Settings must list chapter: ${title}`);
+      const titles = ["三个工作区", "快速找到提示词", "建立收藏夹", "描述你的想法", "设置生图参数"];
+      for (let chapter = 0; chapter < 5; chapter++) {
+        const [mainPage] = await Promise.all([page.waitForEvent("popup"), page.locator(".tutorial-chapters").getByRole("button", { name: new RegExp(chapters[chapter]) }).click()]);
+        await mainPage.getByRole("heading", { name: titles[chapter], exact: true }).waitFor();
+        await mainPage.locator(".tutorial-spotlight").waitFor();
+        await mainPage.getByRole("button", { name: "跳过引导", exact: true }).click();
+        await mainPage.getByRole("button", { name: "打开新手教程", exact: true }).click();
+        await mainPage.getByRole("heading", { name: "欢迎使用 Promi", exact: true }).waitFor();
+        await mainPage.close();
+        await page.getByRole("button", { name: "打开设置教程" }).click();
+        await page.getByRole("button", { name: "选择章节", exact: true }).click();
+      }
+      const [restartPage] = await Promise.all([page.waitForEvent("popup"), page.getByRole("button", { name: "从头开始", exact: true }).click()]);
+      await restartPage.getByRole("heading", { name: "三个工作区", exact: true }).waitFor();
+      await restartPage.close();
+      await page.getByRole("button", { name: "打开设置教程" }).click();
+      await page.getByRole("button", { name: "选择章节", exact: true }).click();
+      await page.locator(".tutorial-chapters").getByRole("button", { name: /设置与模型接入/ }).click();
+      await page.getByRole("heading", { name: "先选你要用的平台", exact: true }).waitFor();
+      await page.getByRole("button", { name: "跳过引导", exact: true }).click();
       assert(!(await page.evaluate(() => window.testRequests)).some(type => /generate|download|provider:test-connection|provider:detect-models/.test(type)), "Guide must not trigger model/provider calls");
       await context.close();
     }
     console.log(process.argv.includes("--settings-only")
-      ? "PASS: official links do not switch providers; settings guide 10 steps at 420/1100px in both themes; manual model IDs; no provider calls"
+      ? "PASS: settings lists all chapters; five main chapter handoffs and restart; reopen chapter menu; settings guide at 420/1100px in both themes; official links preserve selection; no provider calls"
       : "PASS: main tutorial and real settings-page handoff; official links preserve selection; settings guide in both themes and widths; no provider calls");
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

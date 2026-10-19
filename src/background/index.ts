@@ -100,9 +100,14 @@ async function getExistingAppWindow() {
   }
 }
 
-async function openOrFocusAppWindow() {
+async function openOrFocusAppWindow(tutorialChapter?: number) {
+  const url = tutorialChapter === undefined ? APP_WINDOW_PATH : `${APP_WINDOW_PATH}&tutorialChapter=${tutorialChapter}`;
   const existingWindow = await getExistingAppWindow();
   if (existingWindow?.id !== undefined) {
+    if (tutorialChapter !== undefined) {
+      const tabs = await chrome.tabs.query({ windowId: existingWindow.id });
+      if (tabs[0]?.id !== undefined) await chrome.tabs.update(tabs[0].id, { url: chrome.runtime.getURL(url) });
+    }
     if (existingWindow.state === "minimized") {
       await chrome.windows.update(existingWindow.id, { state: "normal" });
     }
@@ -115,7 +120,7 @@ async function openOrFocusAppWindow() {
     DEFAULT_APP_WINDOW_BOUNDS
   );
   const createdWindow = await chrome.windows.create({
-    url: APP_WINDOW_PATH,
+    url,
     type: "popup",
     focused: true,
     width: storedBounds.width,
@@ -166,6 +171,12 @@ chrome.action.onClicked.addListener(() => {
 chrome.runtime.onMessage.addListener((message: RuntimeRequestMessage, _sender, sendResponse) => {
   void (async () => {
     try {
+      if (message.type === "tutorial:open-main") {
+        if (!Number.isInteger(message.chapter) || message.chapter < 0 || message.chapter > 4) throw new Error("无效的教程章节");
+        await openOrFocusAppWindow(message.chapter);
+        sendResponse({ ok: true });
+        return;
+      }
       if (message.type === "storage:merge-collection") {
         sendResponse({ ok: true, records: await mergeStoredCollection(message.payload) });
         return;

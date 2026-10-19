@@ -2,6 +2,7 @@ import { useTheme } from "../hooks/useTheme";
 import { ImageParameterSelect } from "../content/ImageParameterSelect";
 import { NewUserTutorial } from "../content/NewUserTutorial";
 import { SETTINGS_TUTORIAL_STEPS } from "../lib/settings-tutorial";
+import { TUTORIAL_CHAPTERS } from "../lib/tutorial";
 import { PROVIDER_API_LINKS } from "../lib/provider-api-links";
 import { TutorialBook } from "../components/PromiIcons";
 import { confirmInputOnBlankClick, confirmInputOnEnter, startInputComposition, finishInputComposition } from "../lib/enter-confirm";
@@ -757,7 +758,12 @@ export function OptionsApp() {
       {settingsTutorialOpen && !isLoading ? <NewUserTutorial rootRef={guideRootRef} onNavigate={() => {}} onClose={() => {
         setSettingsTutorialOpen(false);
         showToast("以后可点击顶部书本图标，再次查看设置教程");
-      }} steps={SETTINGS_TUTORIAL_STEPS} chapters={["设置与模型接入"]} initialIndex={0} pageGuide seenKey="prompt-butler-settings-tutorial-seen-v1" /> : null}
+      }} onMainTutorial={(chapter) => {
+        chrome.runtime.sendMessage({ type: "tutorial:open-main", chapter }, (response) => {
+          if (chrome.runtime.lastError || !response?.ok) { showToast("未能打开主界面教程，请重试"); return; }
+          setSettingsTutorialOpen(false);
+        });
+      }} steps={SETTINGS_TUTORIAL_STEPS} chapters={[...TUTORIAL_CHAPTERS, "设置与模型接入"]} initialIndex={0} pageGuide seenKey="prompt-butler-settings-tutorial-seen-v1" /> : null}
       <div className="settings-toast-position">
       <AnimatePresence>
         {toastMessage ? (

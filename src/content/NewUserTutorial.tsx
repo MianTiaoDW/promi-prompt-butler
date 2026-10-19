@@ -6,11 +6,12 @@ import { showToast } from "../lib/toast";
 
 interface Layout { width: number; height: number; x: number; y: number; w: number; h: number; bubbleX: number; bubbleY: number; }
 
-export function NewUserTutorial({ rootRef, onNavigate, onClose, onSettingsTutorial, steps = TUTORIAL_STEPS, chapters = TUTORIAL_CHAPTERS, initialIndex = null, pageGuide = false, seenKey = TUTORIAL_SEEN_KEY }: {
+export function NewUserTutorial({ rootRef, onNavigate, onClose, onSettingsTutorial, onMainTutorial, steps = TUTORIAL_STEPS, chapters = TUTORIAL_CHAPTERS, initialIndex = null, pageGuide = false, seenKey = TUTORIAL_SEEN_KEY }: {
   rootRef: RefObject<HTMLElement>;
   onNavigate: (workspace: TutorialWorkspace) => void;
   onClose: () => void;
   onSettingsTutorial?: () => void;
+  onMainTutorial?: (chapter: number) => void;
   steps?: TutorialStep[];
   chapters?: string[];
   initialIndex?: number | null;
@@ -20,6 +21,11 @@ export function NewUserTutorial({ rootRef, onNavigate, onClose, onSettingsTutori
   const [index, setIndex] = useState<number | null>(initialIndex);
   const [layout, setLayout] = useState<Layout | null>(null);
   const step = index === null ? null : steps[index];
+  const selectChapter = (chapter: number) => {
+    const nextIndex = steps.findIndex(item => item.chapter === chapter);
+    if (nextIndex >= 0) setIndex(nextIndex);
+    else onMainTutorial?.(chapter);
+  };
   const navigateRef = useRef(onNavigate);
   navigateRef.current = onNavigate;
   const finish = () => {
@@ -110,10 +116,10 @@ export function NewUserTutorial({ rootRef, onNavigate, onClose, onSettingsTutori
         <div className="tutorial-progress">新手教程</div>
         <h2 id="tutorial-heading">欢迎使用 Promi</h2>
         <p className="tutorial-description">跟着高亮区域认识插件，也可以直接选择想了解的章节。随时可以跳过，以后点击顶部教程图标就能回来。</p>
-        <div className="tutorial-chapters">{chapters.map((title, chapter) => <button type="button" key={title} onClick={() => setIndex(steps.findIndex(item => item.chapter === chapter))}><span>{chapter + 1}</span>{title}</button>)}
+        <div className="tutorial-chapters">{chapters.map((title, chapter) => <button type="button" key={title} onClick={() => selectChapter(chapter)}><span>{chapter + 1}</span>{title}</button>)}
           {onSettingsTutorial ? <button type="button" onClick={onSettingsTutorial}><span>6</span>设置与模型接入</button> : null}
         </div>
-        <footer><button type="button" className="ghost-button" onClick={finish}>暂时跳过</button><button type="button" className="gradient-button" onClick={() => setIndex(0)}>从头开始</button></footer>
+        <footer><button type="button" className="ghost-button" onClick={finish}>暂时跳过</button><button type="button" className="gradient-button" onClick={() => selectChapter(0)}>从头开始</button></footer>
       </>}
     </div>
   </div>;
