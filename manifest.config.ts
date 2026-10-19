@@ -4,7 +4,7 @@ export default defineManifest({
   manifest_version: 3,
   name: "Promi 提示词管家",
   description: "用于生成、管理与复用高质量提示词的高级浏览器插件。",
-  version: "1.3.2",
+  version: "1.3.3",
   permissions: ["storage", "downloads", "activeTab", "scripting", "nativeMessaging"],
   host_permissions: ["<all_urls>"],
   icons: {

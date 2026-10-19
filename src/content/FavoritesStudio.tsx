@@ -38,7 +38,7 @@ import type {
 import type { PromptFolder } from "../types/prompt";
 import type { ExtensionSettings } from "../types/settings";
 import { formatPromptGroup, getPromptGroup } from "../lib/prompt-group";
-import { belongsToFolder, collectPromptToFolder, moveOrderedId, movePromptToTop, reorderPromptRecords, sortPromptRecords } from "../lib/prompt-organization";
+import { belongsToFolder, collectPromptToFolder, removePromptFromFolder, moveOrderedId, movePromptToTop, reorderPromptRecords, sortPromptRecords } from "../lib/prompt-organization";
 import { PromptFolderPicker } from "./PromptFolderPicker";
 import { PromptCard } from "./PromptCard";
 import { PromptPreviewModal } from "./PromptPreviewModal";
@@ -376,6 +376,13 @@ export function FavoritesStudio(props: {
   };
 
   const handleDeletePrompt = async (record: SavedPromptRecord) => {
+    if (activeFolder) {
+      try {
+        await removePromptFromFolder(record.id, activeFolder.id);
+        showToast("已移出当前收藏夹，提示词仍保留在全部中");
+      } catch { showToast("移出收藏夹失败，请重试", "error"); }
+      return;
+    }
     await deletePromptExampleImages(record.id);
     await setFavorites((current) => current.filter((item) => item.id !== record.id));
     showToast("提示词已删除");
@@ -611,6 +618,7 @@ export function FavoritesStudio(props: {
               onToggleFavorite={() => void toggleRecordFavorite(record)}
               onOptimize={() => setOptimizationRecord(record)}
               onDelete={() => void handleDeletePrompt(record)}
+              deleteLabel={activeFolder ? "移出当前收藏夹" : "删除 Prompt"}
               onCollectToFolder={() => setFolderPickerRecord(record)}
               onMoveToTop={() => void handleMoveToTop(record.id)}
               isDragging={draggingPromptId === record.id}

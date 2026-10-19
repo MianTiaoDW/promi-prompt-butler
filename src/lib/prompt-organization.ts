@@ -58,3 +58,18 @@ export async function collectPromptToFolder(promptId: string, folderId: string) 
   const saved = await storageSet(PROMPT_STORAGE_KEYS.favorites, records.map((item) => item.id === promptId ? updated : item), records);
   return saved.find((item) => item.id === promptId)!;
 }
+
+export async function removePromptFromFolder(promptId: string, folderId: string) {
+  const folders = await storageGet<PromptFolder[]>(PROMPT_STORAGE_KEYS.folders, []);
+  const folder = folders.find(item => item.id === folderId);
+  if (!folder) throw new Error("收藏夹已删除。");
+  const records = await storageGet<SavedPromptRecord[]>(PROMPT_STORAGE_KEYS.favorites, []);
+  const record = records.find(item => item.id === promptId);
+  if (!record) throw new Error("提示词已删除。");
+  const scope = folder.scope || "收藏";
+  const updated = { ...record,
+    folderIds: getRecordFolderIds(record, folders).filter(id => id !== folderId),
+    category: record.category === `${scope}/${folder.name}` ? scope : record.category
+  };
+  return storageSet(PROMPT_STORAGE_KEYS.favorites, records.map(item => item.id === promptId ? updated : item), records);
+}

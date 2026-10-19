@@ -23,8 +23,9 @@ const sharp = require("sharp");
         const initial = {
           "prompt-butler-theme": theme, "prompt-butler-tutorial-seen-v1": true,
           "prompt-butler-default-prompts-version": 1,
+          "prompt-butler-folders": [{ id: "one", name: "测试夹", scope: "收藏", order: 0 }, { id: "two", name: "保留夹", scope: "收藏", order: 1 }],
           "prompt-butler-overlay-ui-state": { activeTab: "收藏", assetFilter: "all", searchQuery: "", scrollTop: 0, selectedPromptId: null },
-          "prompt-butler-favorites": [{ id: "demo", title: "示例图测试", content: "测试内容", category: "其他", tags: [], exampleImageIds: ["a", "b"], imageStorageVersion: 2, createdAt: "2026-10-19", provider: "chatgpt", format: "cnPrompt" }]
+          "prompt-butler-favorites": [{ id: "demo", title: "示例图测试", content: "测试内容", category: "收藏/测试夹", folderIds: ["one", "two"], isFavorite: true, tags: [], exampleImageIds: ["a", "b"], imageStorageVersion: 2, createdAt: "2026-10-19", provider: "chatgpt", format: "cnPrompt" }]
         };
         const data = JSON.parse(localStorage.getItem("fixture") || JSON.stringify(initial));
         const listeners = [];
@@ -89,6 +90,19 @@ const sharp = require("sharp");
       await page.waitForFunction(() => window.fixtureData["prompt-butler-favorites"][0].exampleImageIds.join() === "a");
       assert.deepEqual(await page.evaluate(() => window.deletedImages), ["b"], "Only the explicit close button deletes its own image");
       assert.equal(await cases.getByRole("button", { name: "设为示例图", exact: true }).count(), 1);
+      await page.getByRole("button", { name: "关闭预览", exact: true }).click();
+      await page.getByRole("button", { name: "我的收藏夹", exact: true }).click();
+      await page.locator('.collection-folder').filter({ hasText: '测试夹' }).click();
+      await page.getByRole("button", { name: "移出当前收藏夹", exact: true }).click();
+      await page.getByText("这个收藏夹还没有提示词", { exact: true }).waitFor();
+      const retained = await page.evaluate(() => window.fixtureData["prompt-butler-favorites"]);
+      assert.equal(retained.length, 1);
+      assert.deepEqual(retained[0].folderIds, ["two"]);
+      assert.equal(retained[0].isFavorite, true);
+      assert.deepEqual(retained[0].exampleImageIds, ["a"]);
+      assert.deepEqual(await page.evaluate(() => window.deletedImages), ["b"], "Removing from a folder must not delete example image assets");
+      await page.getByRole("button", { name: "全部", exact: true }).click();
+      await page.getByRole("button", { name: /示例图测试.*测试内容/ }).waitFor();
       assert.deepEqual(errors, []);
       await context.close();
     }

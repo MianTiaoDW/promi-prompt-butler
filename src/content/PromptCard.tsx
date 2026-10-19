@@ -21,6 +21,7 @@ interface PromptCardProps {
   onToggleFavorite: () => void;
   onOptimize: () => void;
   onDelete: () => void;
+  deleteLabel?: string;
   onCollectToFolder: () => void;
   onMoveToTop: () => void;
   onDragStart: DragEventHandler<HTMLElement>;
@@ -44,6 +45,7 @@ export function PromptCard({
   onToggleFavorite,
   onOptimize,
   onDelete,
+  deleteLabel = "删除 Prompt",
   onCollectToFolder,
   onMoveToTop,
   onDragStart,
@@ -121,7 +123,7 @@ export function PromptCard({
           </> : null}
           <FavoriteButton active={isFavorite} onToggle={onToggleFavorite} />
           <button type="button" onClick={onCollectToFolder} title="收藏到文件夹" aria-label="收藏到文件夹"><FolderPlus className="h-4 w-4" /></button>
-          <button type="button" onClick={onDelete} title="删除 Prompt" aria-label="删除 Prompt" className="prompt-card-action-delete">
+          <button type="button" onClick={onDelete} title={deleteLabel} aria-label={deleteLabel} className="prompt-card-action-delete">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
