@@ -135,6 +135,18 @@ async function openOrFocusAppWindow(tutorialChapter?: number) {
   }
 }
 
+let pendingAppWindowBounds: AppWindowBounds | null = null;
+let appWindowBoundsTimer: ReturnType<typeof setTimeout> | undefined;
+
+function flushAppWindowBounds() {
+  if (appWindowBoundsTimer !== undefined) clearTimeout(appWindowBoundsTimer);
+  appWindowBoundsTimer = undefined;
+  const bounds = pendingAppWindowBounds;
+  pendingAppWindowBounds = null;
+  if (bounds) void storageSet<AppWindowBounds>(APP_WINDOW_BOUNDS_KEY, bounds)
+    .catch((error) => console.warn("[Prompt Butler] 窗口位置保存失败：", error));
+}
+
 chrome.windows.onBoundsChanged.addListener((window) => {
   void (async () => {
     const knownWindowId = appWindowId ?? await sessionStorageGet<number | null>(APP_WINDOW_SESSION_KEY, null);
@@ -147,17 +159,20 @@ chrome.windows.onBoundsChanged.addListener((window) => {
     ) {
       return;
     }
-    await storageSet<AppWindowBounds>(APP_WINDOW_BOUNDS_KEY, {
+    pendingAppWindowBounds = {
       left: window.left,
       top: window.top,
       width: window.width,
       height: window.height
-    });
+    };
+    if (appWindowBoundsTimer !== undefined) clearTimeout(appWindowBoundsTimer);
+    appWindowBoundsTimer = setTimeout(flushAppWindowBounds, 300);
   })();
 });
 
 chrome.windows.onRemoved.addListener((windowId) => {
   if (windowId === appWindowId) {
+    flushAppWindowBounds();
     void clearAppWindowId();
   }
 });

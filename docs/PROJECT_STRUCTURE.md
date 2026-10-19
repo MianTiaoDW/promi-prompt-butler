@@ -1,6 +1,6 @@
 # 项目目录结构说明
 
-更新日期：2026-10-12。当前跨设备接续状态见 [`docs/CODEX_HANDOFF.md`](docs/CODEX_HANDOFF.md)。
+更新日期：2026-10-12。当前跨设备接续状态见 [`CODEX_HANDOFF.md`](CODEX_HANDOFF.md)。
 
 ```text
 .

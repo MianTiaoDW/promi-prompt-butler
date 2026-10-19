@@ -27,6 +27,8 @@
 
 ---
 
+文档统一入口：[docs/README.md](docs/README.md)。朋友测试包位于本机 `exports/`。
+
 ## 📖 简介 | Introduction
 
 **提示词生成管家** 是一个 Chrome 浏览器插件，能够将一句简单的需求自动扩写为专业级 AI 绘画提示词，输出中文段落、英文 Prompt 和结构化 JSON 三种格式。支持收藏夹管理、AI 一键优化、图像生成等功能。
@@ -156,7 +158,7 @@ powershell -ExecutionPolicy Bypass -File scripts/install-native-host.ps1 -Extens
 └── vite.config.ts        # Vite / CRXJS 构建配置
 ```
 
-完整职责说明见 [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md)。
+完整职责说明见 [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md)。
 
 ---
 

@@ -1,4 +1,6 @@
-# 更新日志
+# 历史更新日志
+
+> 以下为历史记录，当前功能和最新决策以 [CODEX_HANDOFF.md](CODEX_HANDOFF.md) 及实际源码为准。
 
 ## [Unreleased] - 2026-07-24
 

@@ -13,7 +13,6 @@
   "dependencies": {
     "fflate": "^0.8.3",
     "framer-motion": "^12.10.5",
-    "lucide-react": "^0.511.0",
     "matter-js": "^0.20.0",
     "motion": "^14.1.0",
     "react": "^18.3.1",

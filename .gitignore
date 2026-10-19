@@ -14,3 +14,5 @@ design-lab/*/output/build/
 *.zip
 native/**/bin/
 native/**/obj/
+
+exports/
