@@ -6,6 +6,7 @@ import { useModalFocus } from "../hooks/useModalFocus";
 import { MOTION } from "../lib/motion";
 import { sendRuntimeMessage } from "../lib/runtime";
 import { showToast } from "../lib/toast";
+import { copyImageToClipboard } from "../lib/image-clipboard";
 
 export interface ImagePreviewAsset {
   id?: string;
@@ -32,12 +33,13 @@ export function ImagePreviewModal(props: {
     if (!image || isCopying) return;
     setIsCopying(true);
     try {
-      const response = await fetch(image.url);
-      const blob = await response.blob();
-      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      await copyImageToClipboard(image.url);
       showToast("已复制到剪贴板~");
-    } catch {
-      showToast("复制失败，请重试。", "error");
+    } catch (error) {
+      console.warn("[Prompt Butler] 图片复制失败：", error);
+      showToast(error instanceof DOMException && error.name === "NotAllowedError"
+        ? "剪贴板访问被拒绝，请回到插件窗口点击复制。"
+        : error instanceof Error && !(error instanceof DOMException) ? error.message : "图片复制失败，请下载后使用。", "error");
     } finally {
       setIsCopying(false);
     }
