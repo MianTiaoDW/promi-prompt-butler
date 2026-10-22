@@ -1,3 +1,4 @@
+import { JellyState } from "../components/JellyState";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -554,11 +555,11 @@ export function RolePromptStudio(props: {
           ) : null}
         </div>
 
-        {generationResult && !generationResult.ok ? (
-          <div className="creator-error-state">{generationResult.message}</div>
+        {!isGenerating && generationResult && !generationResult.ok ? (
+          <div className="creator-error-state"><JellyState expression="sad" compact message={generationResult.message} /></div>
         ) : null}
 
-        {outputs.length === 0 ? generationResult && !generationResult.ok ? null : (
+        {isGenerating ? <JellyState expression="thinking" message="正在生成提示词，请稍候…" /> : outputs.length === 0 ? generationResult && !generationResult.ok ? null : (
           <div className="creator-result-empty">输入创意并开始生成，结果会在这里进入编辑工作流。</div>
         ) : (
           <div className="creator-output-stack">

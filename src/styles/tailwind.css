@@ -4024,3 +4024,10 @@
   transition: background-color 160ms ease;
 }
 .image-overlay-action:hover:not(:disabled) { background: rgba(20, 26, 38, .72); }
+
+/* Static empty-state mascots: no animation or extra compositing layers. */
+.jelly-state { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 32px 12px; text-align: center; color: var(--text-secondary); }
+.jelly-state img { display: block; width: 160px; height: 144px; object-fit: contain; flex-shrink: 0; pointer-events: none; user-select: none; }
+.jelly-state p { margin: 0; max-width: 36em; line-height: 1.65; overflow-wrap: anywhere; }
+.jelly-state-compact { gap: 10px; padding: 12px; }
+.jelly-state-compact img { width: 96px; height: 86px; }

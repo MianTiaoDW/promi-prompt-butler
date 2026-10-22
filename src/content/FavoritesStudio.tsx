@@ -1,3 +1,4 @@
+import { JellyState } from "../components/JellyState";
 import { CollectionFolder } from "./CollectionFolder";
 import { FolderColorMenu, FolderColorPicker } from "./FolderColorPicker";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -658,7 +659,7 @@ export function FavoritesStudio(props: {
           ))}
         </div>
       ) : (
-        <div className="prompt-asset-empty">{emptyMessage}</div>
+        <div className="prompt-asset-empty"><JellyState expression={searchQuery.trim() ? "searching" : "welcome"} message={searchQuery.trim() ? "没有找到匹配的提示词，换一个关键词试试。" : emptyMessage} /></div>
       )}
     </section>
   );
@@ -759,7 +760,7 @@ export function FavoritesStudio(props: {
               );
             })}
           </div>
-          {scopedFolders.length === 0 ? <div className="prompt-asset-empty">还没有收藏夹，可以从右上角新建。</div> : null}
+          {scopedFolders.length === 0 ? <div className="prompt-asset-empty"><JellyState expression="welcome" message="还没有收藏夹，可以从右上角新建。" /></div> : null}
         </section>
       ) : searchQuery.trim() ? (
         renderAssetSection("搜索结果", categoryAssetRecords, "没有找到匹配的提示词，换一个关键词试试。")

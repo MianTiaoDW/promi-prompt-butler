@@ -1,3 +1,4 @@
+import { JellyState } from "../components/JellyState";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
@@ -401,7 +402,7 @@ export function ImageStudio(props: {
               <article key={`skeleton-${index + 1}`} className="media-card media-loading-card">
                 <div className={`${getGalleryAspectClass(settings.imageAspectRatio)} media-loading-placeholder w-full`}>
                   <div className="media-loading-content">
-                    <span className="media-loading-icon"><LoaderCircle className={`h-7 w-7 ${shouldReduceMotion ? "" : "animate-spin"}`} /></span>
+                    <JellyState expression="thinking" compact />
                     <strong>图片生成中</strong>
                     <span>完成后将在这里显示</span>
                   </div>
@@ -413,7 +414,7 @@ export function ImageStudio(props: {
 
         {!isGenerating && generationResult && !generationResult.ok ? (
           <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-4 text-sm text-rose-200">
-            <p>{generationResult.message}</p>
+            <JellyState expression="sad" compact message={generationResult.message} />
             <button type="button" className="gradient-button mt-3 px-3 py-2 text-xs" onClick={() => { void handleGenerate(); }}>
               重试生成
             </button>
