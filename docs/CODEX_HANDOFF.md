@@ -4,7 +4,7 @@
 
 最新正式代码：`main`
 
-仓库：`https://github.com/MianTiaoDW/prompt-butler`
+仓库：`https://github.com/MianTiaoDW/promi-prompt-butler`
 
 ## 先说结论
 
@@ -13,6 +13,8 @@
 - Codex 聊天记录和本机安装的 Skill 不由 Git 同步。本文件把继续工作所需的决策和边界写入仓库，公司 Codex 不应依赖旧聊天猜测。
 
 ## 2026-10-23 静态果冻状态反馈
+
+- 仓库品牌统一为 Promi 提示词管家，GitHub 名称改为 `MianTiaoDW/promi-prompt-butler`，本地 origin 已更新；本机工作目录保持原路径。首页新增中文／English 双语导航，`README.en.md` 为完整英文介绍（产品界面仍为中文），使用指南及仓库简介、下载入口和主题标签按 v1.4.0 更新。跨设备接续可执行 `git remote set-url origin https://github.com/MianTiaoDW/promi-prompt-butler.git`。
 
 - 最新分享版本为 `1.4.0`，package／锁文件／manifest 一致；打包脚本包含当版更新说明、安装说明、反馈模板及可选 Windows 置顶工具，输出到忽略的 `exports/`。安装说明已更新 macOS 置顶条件和原窗口保留要求。此版本包含下述果冻插图、macOS 置顶及图片复制修复。
 
@@ -126,8 +128,8 @@
 ## 另一台电脑首次接续
 
 ```powershell
-git clone https://github.com/MianTiaoDW/prompt-butler.git
-cd prompt-butler
+git clone https://github.com/MianTiaoDW/promi-prompt-butler.git
+cd promi-prompt-butler
 git fetch origin
 git switch main
 npm ci
