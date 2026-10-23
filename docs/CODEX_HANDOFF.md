@@ -14,6 +14,8 @@
 
 ## 2026-10-23 静态果冻状态反馈
 
+- macOS 置顶改用 Document Picture-in-Picture：新版 Chrome／Edge 点击图钉打开扩展内可交互工作台，无需 Windows 原生程序。原窗口保持打开，关闭或刷新原窗口会关闭小窗；各窗口未保存的输入独立，保存数据仍共用扩展存储。Windows 保持原生置顶路径。`scripts/test-mac-pin.cjs` 在 Mac 隔离真实扩展中验证打开、交互、取消、重开与关闭状态恢复，并覆盖不支持 API 的提示和模拟 Windows 消息分支。
+
 - 用户确认的无描边蓝色果冻切为四张本地透明 WebP，位于 src/assets/jelly，欢迎保留分离圆球手、疑惑保留问号。素材来自本会话 imagegen 预览；生产使用确认的浅底版本裁切并去底，未采用透明生成中有杂点的版本。
 - 空提示词列表／收藏夹使用 welcome，搜索无结果使用 searching；创作及生图的等待使用 thinking，失败使用 sad。列表有内容时不显示空状态图。保留具体错误、添加和重试入口，不增加动画／计时器、外部请求或状态存储。
 - scripts/test-jelly-states.cjs 使用隔离真实扩展，验证有内容不显示、空列表与文件夹、搜索、两类生成任务等待→失败及消失条件、明暗主题和 420／680px。模拟任务状态，不调用真实 AI。截图 output/playwright/jelly-*.png。

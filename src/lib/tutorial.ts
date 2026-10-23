@@ -6,7 +6,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   { chapter: 0, title: "三个工作区", text: "提示词库用来存和找提示词；创作用来把想法写成提示词；图像工坊用来生成图片。点击下一步认识各项功能。", target: ".workspace-navigation" },
   { chapter: 0, title: "先连接模型服务", text: "点击设置进入配置中心，填写服务地址和 API Key，选择文字、视觉和生图模型。保存配置并测试连接成功后，就可以生成。教程不会替你调用模型或产生费用。", target: "[aria-label='打开配置中心']" },
   { chapter: 0, title: "查看连接状态", text: "绿色在线表示连接测试成功；未配置或连接失败时，请回设置检查地址、密钥和模型。服务和密钥需要你自己准备。", target: ".workspace-status-pill" },
-  { chapter: 0, title: "置顶和外观", text: "图钉让插件窗口保持在其他窗口上方。Windows 需要安装置顶辅助程序，macOS 暂不支持。太阳或月亮按钮可选日间、夜间或跟随系统。", target: ".workspace-system-controls" },
+  { chapter: 0, title: "置顶和外观", text: "图钉让工作台保持在其他窗口上方。Windows 需要安装置顶辅助程序；Mac 的新版 Chrome／Edge 会打开置顶小窗，请保持原窗口打开。太阳或月亮按钮可选日间、夜间或跟随系统。", target: ".workspace-system-controls" },
   { chapter: 1, title: "快速找到提示词", text: "输入标题、正文或标签关键词搜索。最近使用可以快速打开刚用过的提示词；全部、收藏和我的收藏夹分别查看不同内容。", target: ".library-search-wrap", workspace: "library", fallback: ".workspace-navigation" },
   { chapter: 1, title: "新建提示词组", text: "点击添加提示词，填写名称、备注和步骤。一个步骤放一段提示词，复杂流程可以添加多个步骤，再保存提示词组。", target: "[aria-label='添加提示词'], .prompt-add-button", workspace: "library", fallback: ".prompt-asset-section-heading" },
   { chapter: 1, title: "打开、复制与编辑", text: "点击卡片打开详情，查看和复制每一步；编辑可修改标题、备注和正文。图片上悬停出现眼睛，点击查看大图。没有卡片时，可先添加或导入提示词。", target: ".prompt-asset-card", workspace: "library", fallback: ".prompt-asset-section" },
