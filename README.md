@@ -9,9 +9,9 @@
 </p>
 <p align="center"><a href="https://github.com/MianTiaoDW/promi-prompt-butler/releases">下载测试版</a> · <a href="docs/使用指南.md">使用指南</a> · <a href="https://github.com/MianTiaoDW/promi-prompt-butler/issues">反馈问题</a></p>
 
-Promi 是一个面向 AI 绘画创作的 Chrome／Edge 浏览器扩展。它把提示词管理、AI 提示词创作和图片生成放在同一个工作台中，支持日间、夜间和跟随系统主题。
+Promi 是一个面向有提示词管理收藏需求用户的，兼备AI 绘画创作的 Chrome／Edge 浏览器扩展。它把提示词管理、AI 提示词创作和图片生成放在同一个工作台中，支持日间、夜间和跟随系统主题。
 
-当前分享版本为 **v1.4.0**。使用自己的模型服务和 API Key；插件不附带模型额度，实际支持的模型及生图参数取决于服务商。
+当前分享版本为 **v1.4.0**。请您使用自己的模型服务和 API Key；插件不附带模型额度，实际支持的模型及生图参数取决于服务商。
 
 ## 三个工作区
 
