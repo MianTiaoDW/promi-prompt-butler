@@ -204,6 +204,7 @@ export function PromptText({ text, marks: rawMarks, editable = false, onTextChan
   const [theme, setTheme] = useState<MarkTheme>("light");
   const [mirrorStyle, setMirrorStyle] = useState<CSSProperties>({});
   const [previewMarks, setPreviewMarks] = useState<PromptMark[] | null>(null);
+  const selectionReader = useRef<() => void>(() => {});
   const marks = useMemo(() => normalizeMarks(text, rawMarks ?? []), [text, rawMarks]);
   const displayMarks = previewMarks ?? marks;
   const preview = useCallback((next: PromptMark[]) => setPreviewMarks(next), []);
@@ -245,15 +246,59 @@ export function PromptText({ text, marks: rawMarks, editable = false, onTextChan
     else {
       const root = element.getRootNode() as Document & { getSelection(): Selection | null };
       const selected = root.getSelection?.() ?? window.getSelection();
-      if (!selected?.rangeCount || !element.contains(selected.anchorNode) || !element.contains(selected.focusNode)) return;
-      const range = selected.getRangeAt(0), before = range.cloneRange(); before.selectNodeContents(element); before.setEnd(range.startContainer, range.startOffset); start = before.toString().length; end = start + range.toString().length;
+      if (!selected?.rangeCount || !element.contains(selected.anchorNode)) return;
+      const range = selected.getRangeAt(0).cloneRange(), contents = document.createRange();
+      contents.selectNodeContents(element);
+      if (!range.intersectsNode(element)) return;
+      if (range.compareBoundaryPoints(Range.START_TO_START, contents) < 0) range.setStart(contents.startContainer, contents.startOffset);
+      if (range.compareBoundaryPoints(Range.END_TO_END, contents) > 0) range.setEnd(contents.endContainer, contents.endOffset);
+      const before = range.cloneRange(); before.selectNodeContents(element); before.setEnd(range.startContainer, range.startOffset); start = before.toString().length; end = start + range.toString().length;
       rect = range.getBoundingClientRect();
     }
     if (start === end) { setSelection(null); return; }
     const host = element.closest<HTMLElement>("[role='dialog'], .fluxora-shell, .settings-page") ?? wrapper.current!;
     const bounds = { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
-    setSelection({ start, end, x: rect.left, y: rect.bottom, bounds, host });
+    setSelection(current => current && current.start === start && current.end === end && current.host === host &&
+      current.bounds.left === bounds.left && current.bounds.top === bounds.top && current.bounds.right === bounds.right && current.bounds.bottom === bounds.bottom
+      ? current : { start, end, x: rect.left, y: rect.bottom, bounds, host });
   };
+  selectionReader.current = select;
+  useEffect(() => {
+    if (!onMarksChange || props.disabled) return;
+    const doc = wrapper.current?.ownerDocument;
+    if (!doc) return;
+    let dragging = false, interactingWithTools = false, frame: number | undefined;
+    const schedule = () => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => { frame = undefined; if (!interactingWithTools) selectionReader.current(); });
+    };
+    const down = (event: Event) => {
+      interactingWithTools = event.composedPath().some(node => node instanceof Element && Boolean(node.closest(".prompt-color-panel, .prompt-format-toolbar")));
+      const element = editable ? textarea.current : reader.current;
+      dragging = Boolean(element && event.composedPath().includes(element));
+    };
+    const focus = (event: Event) => {
+      const element = editable ? textarea.current : reader.current;
+      if (element && event.composedPath().includes(element)) interactingWithTools = false;
+    };
+    const release = () => { if (dragging) { dragging = false; schedule(); } };
+    const changed = () => { if (!dragging && !interactingWithTools && !(doc.activeElement instanceof Element && doc.activeElement.closest(".prompt-color-panel, .prompt-format-toolbar"))) schedule(); };
+    doc.addEventListener("focusin", focus, true);
+    doc.addEventListener("pointerdown", down, true);
+    doc.addEventListener("pointerup", release, true);
+    doc.addEventListener("mouseup", release, true);
+    doc.addEventListener("pointercancel", release, true);
+    doc.addEventListener("selectionchange", changed);
+    return () => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      doc.removeEventListener("focusin", focus, true);
+      doc.removeEventListener("pointerdown", down, true);
+      doc.removeEventListener("pointerup", release, true);
+      doc.removeEventListener("mouseup", release, true);
+      doc.removeEventListener("pointercancel", release, true);
+      doc.removeEventListener("selectionchange", changed);
+    };
+  }, [editable, Boolean(onMarksChange), props.disabled]);
   return <div ref={wrapper} className="prompt-mark-field" data-prompt-text>
     {editable ? <>
       <textarea {...props} ref={textarea} value={text} className={`${className}${displayMarks.length ? " has-prompt-marks" : ""}${previewMarks ? " is-mark-preview" : ""}`} onSelect={select} onChange={event => { setSelection(null); setPreviewMarks(null); onTextChange?.(event.target.value, remapMarks(text, event.target.value, marks)); }} />
