@@ -4031,3 +4031,46 @@
 .jelly-state p { margin: 0; max-width: 36em; line-height: 1.65; overflow-wrap: anywhere; }
 .jelly-state-compact { gap: 10px; padding: 12px; }
 .jelly-state-compact img { width: 96px; height: 86px; }
+
+/* Prompt emphasis uses a plain textarea with a visual mirror; stored text stays plain. */
+.prompt-mark-field { position: relative; width: 100%; min-width: 0; }
+.prompt-mark-field > textarea { display: block; width: 100%; }
+.prompt-mark-field > pre { margin: 0; font-family: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.prompt-mark-field .has-prompt-marks { color: transparent !important; -webkit-text-fill-color: transparent; caret-color: var(--text-primary); }
+.prompt-mark-field .has-prompt-marks::placeholder { -webkit-text-fill-color: var(--text-tertiary); }
+.prompt-mark-field .has-prompt-marks::selection { color: #10223d; -webkit-text-fill-color: #10223d; background: #b9d8ff; }
+.prompt-mark-mirror { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: inherit; color: var(--text-primary); }
+.prompt-mark-mirror pre { margin: 0; background: transparent; min-height: 100%; }
+.prompt-mark-field [data-prompt-mark] { border-radius: 2px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.prompt-color-panel { position: absolute; z-index: 2147483646; width: min(300px, calc(100% - 20px)); max-height: min(580px, calc(100% - 20px)); overflow: auto; padding: 14px; border-radius: 18px; border: 1px solid var(--border-default); background: var(--bg-prompt-modal); color: var(--text-primary); box-shadow: var(--shadow-modal); font-size: 12px; line-height: 1.5; text-align: left; user-select: none; }
+.prompt-color-panel header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.prompt-color-panel header strong { font-size: 14px; }
+.prompt-color-panel header button { font-size: 20px; line-height: 24px; width: 28px; border-radius: 50%; background: var(--bg-surface-3); }
+.prompt-color-panel label { display: block; margin: 8px 0; color: var(--text-secondary); }
+.mark-mode-tabs { display: flex; gap: 6px; padding: 3px; border-radius: 10px; background: var(--bg-surface-3); }
+.mark-mode-tabs button { flex: 1; padding: 7px; border-radius: 8px; }
+.mark-mode-tabs button[aria-pressed="true"], .mark-theme-tabs button[aria-pressed="true"] { background: #0467fb; color: #fff; }
+.mark-swatches { display: flex; flex-wrap: wrap; gap: 7px; }
+.mark-swatches button { flex-shrink: 0; width: 21px; height: 21px; border-radius: 50%; border: 1px solid var(--border-default); }
+.mark-swatches button:hover, .mark-swatches button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.mark-theme-tabs { display: flex; align-items: center; gap: 4px; margin: 12px 0 8px; }
+.mark-theme-tabs span { flex: 1; }
+.mark-theme-tabs button { padding: 3px 9px; border-radius: 7px; }
+.mark-sv-square { position: relative; height: 116px; border-radius: 10px; background-image: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent); cursor: crosshair; touch-action: none; }
+.mark-sv-square > span { position: absolute; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #333; transform: translate(-50%, -50%); pointer-events: none; }
+.prompt-color-panel input[type="range"] { width: 100%; accent-color: #0467fb; cursor: pointer; }
+.mark-hue input { appearance: none; height: 10px; border-radius: 8px; background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+.mark-color-values { display: flex; gap: 6px; }
+.mark-color-values label { flex: 1; min-width: 0; }
+.mark-color-values label:first-child { flex: 1.4; }
+.prompt-color-panel input:not([type="range"]) { width: 100%; margin-top: 3px; padding: 6px; border: 1px solid var(--border-default); border-radius: 7px; background: var(--bg-surface-3); color: var(--text-primary); font-size: 12px; }
+.mark-reading-preview { padding: 9px; margin-top: 10px; border: 1px solid var(--border-default); border-radius: 8px; overflow-wrap: anywhere; max-height: 80px; overflow: auto; user-select: text; }
+.mark-contrast { margin: 5px 0; font-size: 11px; }
+.mark-fix { color: var(--accent-primary); text-decoration: underline; }
+.mark-clear-actions { display: flex; gap: 8px; justify-content: space-between; margin: 10px 0; }
+.mark-clear-actions button { padding: 5px; border-radius: 6px; background: var(--bg-surface-3); }
+.mark-apply { width: 100%; padding: 9px; border-radius: 10px; background: #0467fb; color: #fff; font-weight: 600; }
+.prompt-color-panel button:focus-visible, .prompt-color-panel input:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.prompt-color-panel button:disabled { opacity: .5; }
+.prompt-inline-mark { background: var(--prompt-mark-light-bg, transparent); color: var(--prompt-mark-light-text, inherit); border-radius: 2px; }
+[data-theme="dark"] .prompt-inline-mark, :host([data-theme="dark"]) .prompt-inline-mark { background: var(--prompt-mark-dark-bg, transparent); color: var(--prompt-mark-dark-text, inherit); }

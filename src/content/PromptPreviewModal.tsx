@@ -1,4 +1,6 @@
 import { FavoriteButton } from "./FavoriteButton";
+import { PromptText } from "../components/PromptText";
+import { type PromptMark } from "../lib/prompt-marks";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, ChevronDown, Close, Copy, Eye, Image, PencilLine, Plus, Sparkles, X } from "../components/PromiIcons";
@@ -19,7 +21,8 @@ interface PromptPreviewModalProps {
   isFavorite: boolean;
   onClose: () => void;
   onCopy: () => void;
-  onSave: (content: string) => void;
+  onSave: (content: string, marks?: PromptMark[]) => void;
+  onMarksChange?: (format: PromptOutputFormat, marks: PromptMark[]) => Promise<void>;
   onEditGroup?: () => void;
   onSaveGroup?: (group: PromptGroup) => Promise<void>;
   onToggleFavorite: () => void;
@@ -43,6 +46,7 @@ export function PromptPreviewModal({
   onClose,
   onCopy,
   onSave,
+  onMarksChange,
   onEditGroup,
   onSaveGroup,
   onToggleFavorite,
@@ -57,6 +61,8 @@ export function PromptPreviewModal({
   const [expandedSections, setExpandedSections] = useState<PromptOutputFormat[]>(["cnPrompt"]);
   const [isEditing, setIsEditing] = useState(false);
   const [draftContent, setDraftContent] = useState("");
+  const [draftMarks, setDraftMarks] = useState<PromptMark[]>([]);
+  const [variantMarks, setVariantMarks] = useState<Partial<Record<PromptOutputFormat, PromptMark[]>>>({});
   const [exampleIds, setExampleIds] = useState<string[]>([]);
   const [exampleUrls, setExampleUrls] = useState<Record<string, string | null>>({});
   const [previewExample, setPreviewExample] = useState<{ id: string; url: string } | null>(null);
@@ -70,6 +76,8 @@ export function PromptPreviewModal({
   useEffect(() => {
     if (!record) return;
     setDraftContent(record.content);
+    setDraftMarks(record.marks ?? record.variantMarks?.[record.format] ?? []);
+    setVariantMarks({ ...record.variantMarks, [record.format]: record.variantMarks?.[record.format] ?? record.marks ?? [] });
     setIsEditing(false);
     setPreviewExample(null);
     setExampleIds((record.exampleImageIds ?? []).slice(0, MAX_EXAMPLE_IMAGES));
@@ -216,7 +224,7 @@ export function PromptPreviewModal({
             </header>
 
             <div className="prompt-preview-content">
-              {collected && group ? <PromptGroupSteps key={record.id} group={group} onSave={onSaveGroup} /> : <>
+              {collected && group ? <PromptGroupSteps key={record.id} group={group} onSave={onSaveGroup} allowEditing={allowEditing} /> : <>
               {(["cnPrompt", "enPrompt", "structuredPrompt"] as PromptOutputFormat[]).map((format) => {
                 const sectionContent = record.contentVariants?.[format] ?? (record.format === format ? record.content : "");
                 const hasContent = Boolean(sectionContent);
@@ -237,9 +245,17 @@ export function PromptPreviewModal({
                           transition={{ duration: shouldReduceMotion ? 0 : MOTION.fastMs / 1000, ease: MOTION.easeOut }}
                         >
                           {hasContent ? isEditing ? (
-                            <textarea value={draftContent} onChange={(event) => setDraftContent(event.target.value)} className="form-field prompt-preview-editor" />
+                            <PromptText editable text={draftContent} marks={draftMarks} onTextChange={(text, marks) => { setDraftContent(text); setDraftMarks(marks); }} onMarksChange={setDraftMarks} className="form-field prompt-preview-editor" />
                           ) : (
-                            <pre>{sectionContent}</pre>
+                            <PromptText text={sectionContent} marks={variantMarks[format]} onMarksChange={async marks => {
+                              if (onMarksChange) await onMarksChange(format, marks);
+                              else {
+                                const updated = await updateFavoritePrompt(record.id, { variantMarks: { ...variantMarks, [format]: marks }, ...(format === record.format ? { marks } : {}) });
+                                if (!updated) throw new Error("提示词已删除");
+                              }
+                              setVariantMarks(current => ({ ...current, [format]: marks }));
+                              if (format === record.format) setDraftMarks(marks);
+                            }} />
                           ) : (
                             <p>该资产暂未包含{sectionLabels[format]}版本。</p>
                           )}
@@ -282,7 +298,7 @@ export function PromptPreviewModal({
               {collected ? (allowEditing && onEditGroup ? <button type="button" onClick={onEditGroup}><PencilLine className="h-4 w-4" />编辑</button> : null) : <>
               <button type="button" onClick={onCopy}>{isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{isCopied ? "已复制" : "一键复制 Prompt"}</button>
               {allowEditing ? isEditing ? (
-                <button type="button" className="gradient-button" data-enter-submit onClick={() => { onSave(draftContent); setIsEditing(false); }}><Check className="h-4 w-4" />保存编辑</button>
+                <button type="button" className="gradient-button" data-enter-submit onClick={() => { onSave(draftContent, draftMarks); setIsEditing(false); }}><Check className="h-4 w-4" />保存编辑</button>
               ) : (
                 <button
                   type="button"

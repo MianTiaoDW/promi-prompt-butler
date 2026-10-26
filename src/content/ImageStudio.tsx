@@ -1,4 +1,5 @@
 import { JellyState } from "../components/JellyState";
+import { PromptText } from "../components/PromptText";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
@@ -18,7 +19,8 @@ import {
 } from "../lib/image-library";
 import { getImageConnectionSettings } from "../lib/provider-presets";
 import { toUserFacingError } from "../lib/error-messages";
-import { PROMPT_STORAGE_KEYS, savePromptToFavorites } from "../lib/prompt-library";
+import { PROMPT_STORAGE_KEYS, savePromptToFavorites, updateFavoritePrompt } from "../lib/prompt-library";
+import { getPromptContentMarks, formatPromptGroup } from "../lib/prompt-group";
 import { bindExampleImage, MAX_EXAMPLE_IMAGES, saveExampleImage } from "../lib/example-images";
 import { storageGet, storageSet } from "../lib/storage";
 import { sendRuntimeMessage, sendRuntimeMessageLong } from "../lib/runtime";
@@ -94,6 +96,7 @@ export function ImageStudio(props: {
     model: workspace.source.model ?? settings.imageModel,
     format: workspace.source.format,
     content: workspace.prompt,
+    marks: workspace.marks,
     category: "收藏",
     tags: [],
     source: workspace.source.type === "temporary" ? "ai-generated" : workspace.source.type
@@ -279,6 +282,7 @@ export function ImageStudio(props: {
       model: workspace.source?.model ?? settings.imageModel,
       format: workspace.source?.format ?? "cnPrompt",
       content: workspace.prompt,
+      marks: workspace.marks,
       title: workspace.source?.title || workspace.prompt.slice(0, 28),
       category: "收藏/其他",
       source: workspace.source?.type === "temporary" ? "ai-generated" : workspace.source?.type === "ai-generated" || workspace.source?.type === "system-template" ? workspace.source.type : "user-created",
@@ -329,12 +333,16 @@ export function ImageStudio(props: {
           <ImageParameterSelect label="生成数量" value={String(settings.imageCount)} options={IMAGE_COUNTS.map(value => ({ value: String(value), label: `${value} 张` }))} onChange={value => { void setImageCount(Number(value) as typeof settings.imageCount); }} />
         </div>
 
-        <textarea
-          value={workspace.prompt}
-          onChange={(event) => {
+        <PromptText editable
+          text={workspace.prompt}
+          marks={workspace.marks}
+          aria-label="图片提示词"
+          onMarksChange={async marks => { await setWorkspace({ ...workspace, marks }); }}
+          onTextChange={(text, marks) => {
             void setWorkspace({
               ...workspace,
-              prompt: event.target.value,
+              prompt: text,
+              marks,
               lastUpdatedAt: new Date().toISOString()
             });
           }}
@@ -536,6 +544,22 @@ export function ImageStudio(props: {
         onClose={() => setPreviewPromptRecord(null)}
         onCopy={() => { if (previewPromptRecord) void navigator.clipboard.writeText(previewPromptRecord.content).then(() => showToast("提示词已复制")); }}
         onSave={() => undefined}
+        onMarksChange={async (format, marks) => {
+          if (!previewPromptRecord) return;
+          if (previewPromptRecord.id !== "temporary-image-workspace-prompt") {
+            const updated = await updateFavoritePrompt(previewPromptRecord.id, { variantMarks: { ...previewPromptRecord.variantMarks, [format]: marks }, ...(format === previewPromptRecord.format ? { marks } : {}) });
+            if (!updated) throw new Error("提示词已删除");
+            setPreviewPromptRecord(updated);
+          }
+          if (format === workspace.source?.format && previewPromptRecord.content === workspace.prompt && (previewPromptRecord.id === workspace.source?.promptId || previewPromptRecord.id === "temporary-image-workspace-prompt")) await setWorkspace({ ...workspace, marks });
+        }}
+        onSaveGroup={previewPromptRecord?.id !== "temporary-image-workspace-prompt" ? async group => {
+          if (!previewPromptRecord) return;
+          const updated = await updateFavoritePrompt(previewPromptRecord.id, { group, content: formatPromptGroup(group) });
+          if (!updated) throw new Error("提示词已删除");
+          setPreviewPromptRecord(updated);
+          if (updated.id === workspace.source?.promptId && updated.content === workspace.prompt) await setWorkspace({ ...workspace, marks: getPromptContentMarks(updated) });
+        } : undefined}
         onToggleFavorite={() => { void saveCurrentPrompt(); }}
       />
 

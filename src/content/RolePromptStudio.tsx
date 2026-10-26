@@ -1,4 +1,7 @@
 import { JellyState } from "../components/JellyState";
+import { PromptText } from "../components/PromptText";
+import { remapMarks, type PromptMark } from "../lib/prompt-marks";
+import { getPromptContentMarks } from "../lib/prompt-group";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -16,10 +19,10 @@ import {
 import { useChromeStorage } from "../hooks/useChromeStorage";
 import { saveImageWorkspace } from "../lib/image-library";
 import { getPromptSkillProfile, PROMPT_SKILL_PROFILES } from "../lib/prompt-skills";
-import { ensureDefaultRolePreset, PROMPT_STORAGE_KEYS, savePromptToFavorites } from "../lib/prompt-library";
-import { storageGet } from "../lib/storage";
+import { ensureDefaultRolePreset, PROMPT_STORAGE_KEYS, savePromptToFavorites, updateFavoritePrompt } from "../lib/prompt-library";
+import { storageGet, storageSet } from "../lib/storage";
 import type { SavedPromptRecord } from "../types/prompt";
-import { failPromptTask, getPromptTask, startPromptTask, subscribePromptTask } from "../lib/task-broker";
+import { failPromptTask, getPromptTask, startPromptTask, subscribePromptTask, PROMPT_TASK_KEY } from "../lib/task-broker";
 import { showToast } from "../lib/toast";
 import { sendRuntimeMessageLong } from "../lib/runtime";
 import type {
@@ -109,9 +112,22 @@ export function RolePromptStudio(props: {
   const [savedRecords, setSavedRecords] = useState<Partial<Record<PromptOutputFormat, SavedPromptRecord>>>({});
   const [editingFormat, setEditingFormat] = useState<PromptOutputFormat | null>(null);
   const [editingText, setEditingText] = useState("");
+  const [editingMarks, setEditingMarks] = useState<PromptMark[]>([]);
   const [expandedOutputs, setExpandedOutputs] = useState<PromptOutputFormat[]>(["cnPrompt"]);
 
   const { value: workspaceState, setValue: setWorkspaceState, isLoading } = workspace;
+  const resultMarks = generationResult?.ok && workspaceState.resultMarks?.generatedAt === generationResult.generatedAt ? workspaceState.resultMarks.variants : {};
+  const saveResultMarks = async (format: PromptOutputFormat, marks: PromptMark[], text?: string) => {
+    if (!generationResult?.ok) return;
+    const saved = savedRecords[format];
+    const currentText = text ?? (format === "structuredPrompt" ? structuredPromptToText(generationResult) : generationResult.output[format]);
+    if (saved && (saved.content === currentText || saved.contentVariants?.[format] === currentText)) {
+      const updated = await updateFavoritePrompt(saved.id, { marks, variantMarks: { ...saved.variantMarks, [format]: marks } });
+      if (!updated) throw new Error("提示词已删除");
+      setSavedRecords(current => ({ ...current, [format]: updated }));
+    }
+    await setWorkspaceState(current => ({ ...current, resultMarks: { generatedAt: generationResult.generatedAt, variants: { ...resultMarks, [format]: marks } } }));
+  };
   const selectedSkill = getPromptSkillProfile(workspaceState.skillId);
   const quickPrompts = useMemo(
     () => [...promptAssets.value]
@@ -274,9 +290,10 @@ export function RolePromptStudio(props: {
   const startEditing = (format: PromptOutputFormat, text: string) => {
     setEditingFormat(format);
     setEditingText(text);
+    setEditingMarks(resultMarks[format] ?? []);
   };
 
-  const saveEditing = (format: PromptOutputFormat) => {
+  const saveEditing = async (format: PromptOutputFormat) => {
     if (!generationResult?.ok) return;
     const updatedOutput = { ...generationResult.output };
     if (format === "cnPrompt") updatedOutput.cnPrompt = editingText;
@@ -290,9 +307,16 @@ export function RolePromptStudio(props: {
         return;
       }
     }
-    setGenerationResult({ ...generationResult, output: updatedOutput });
-    setEditingFormat(null);
-    showToast("已确认修改");
+    const finalText = format === "structuredPrompt" ? JSON.stringify(updatedOutput.structuredPrompt, null, 2) : editingText;
+    try {
+      await saveResultMarks(format, remapMarks(editingText, finalText, editingMarks), finalText);
+      const task = await getPromptTask();
+      if (task.result?.ok && task.result.generatedAt === generationResult.generatedAt) await storageSet(PROMPT_TASK_KEY, { ...task, result: { ...generationResult, output: updatedOutput } });
+      setGenerationResult({ ...generationResult, output: updatedOutput });
+      setSavedRecords(current => ({ ...current, [format]: undefined }));
+      setEditingFormat(null);
+      showToast("已确认修改");
+    } catch { showToast("修改未保存，请重试", "error"); }
   };
 
   const openSaveModal = (format: PromptOutputFormat, text: string) => {
@@ -306,6 +330,8 @@ export function RolePromptStudio(props: {
       model: generationResult.model,
       format: pendingSave.format,
       content: pendingSave.text,
+      marks: resultMarks[pendingSave.format],
+      variantMarks: resultMarks,
       title: values.title,
       category: "收藏",
       tags: values.tags,
@@ -327,6 +353,7 @@ export function RolePromptStudio(props: {
     const record = savedRecords[format];
     await saveImageWorkspace({
       prompt: text,
+      marks: resultMarks[format],
       lastUpdatedAt: null,
       source: {
         promptId: record?.id,
@@ -397,9 +424,11 @@ export function RolePromptStudio(props: {
         </div>
 
         <div className="creator-idea-field">
-          <textarea
-            value={workspaceState.userRequirement}
-            onChange={(event) => void updateWorkspace({ userRequirement: event.target.value })}
+          <PromptText editable
+            text={workspaceState.userRequirement}
+            marks={workspaceState.requirementMarks}
+            onMarksChange={async marks => { await updateWorkspace({ requirementMarks: marks }); }}
+            onTextChange={(text, marks) => void updateWorkspace({ userRequirement: text, requirementMarks: marks })}
             placeholder="例如：为一款东方茶饮设计商业海报，产品悬浮在晨雾山谷中，柔和逆光，留出品牌标题区域。"
             aria-label="创意描述"
             className="form-field creator-idea-input"
@@ -408,7 +437,7 @@ export function RolePromptStudio(props: {
               <button
                 type="button"
                 className="creator-input-clear"
-                onClick={() => void updateWorkspace({ userRequirement: "" })}
+                onClick={() => void updateWorkspace({ userRequirement: "", requirementMarks: [] })}
                 aria-label="清空创意描述"
                 title="清空描述"
               >
@@ -437,7 +466,7 @@ export function RolePromptStudio(props: {
             ) : null}
             <span className="creator-reference-count">{referenceImages.length}/8</span>
           </div>
-          {quickPrompts.length > 0 ? <div className="creator-quick-prompts"><span>最近使用</span>{quickPrompts.map((record) => <button key={record.id} type="button" title={record.title || record.content.slice(0, 28)} onClick={() => void updateWorkspace({ userRequirement: record.content })}>{record.title || record.content.slice(0, 12)}</button>)}</div> : null}
+          {quickPrompts.length > 0 ? <div className="creator-quick-prompts"><span>最近使用</span>{quickPrompts.map((record) => <button key={record.id} type="button" title={record.title || record.content.slice(0, 28)} onClick={() => void updateWorkspace({ userRequirement: record.content, requirementMarks: getPromptContentMarks(record) })}>{record.title || record.content.slice(0, 12)}</button>)}</div> : null}
         </div>
 
         {referenceImages.length > 0 ? (
@@ -468,9 +497,11 @@ export function RolePromptStudio(props: {
         </button>
         {isExpanded ? (
           <div className="creator-setting-detail">
-            <textarea
-              value={workspaceState.rolePreset}
-              onChange={(event) => void updateWorkspace({ rolePreset: event.target.value })}
+            <PromptText editable
+              text={workspaceState.rolePreset}
+              marks={workspaceState.roleMarks}
+              onMarksChange={async marks => { await updateWorkspace({ roleMarks: marks }); }}
+              onTextChange={(text, marks) => void updateWorkspace({ rolePreset: text, roleMarks: marks })}
               disabled={workspaceState.rolePresetLocked || isLoading}
               className="form-field min-h-[150px]"
             />
@@ -595,17 +626,19 @@ export function RolePromptStudio(props: {
 
                   {isOutputExpanded ? editingFormat === item.format ? (
                     <div data-enter-confirm className="creator-inline-edit">
-                    <textarea
+                    <PromptText editable
                       autoFocus
                       aria-label={`编辑${item.title}`}
-                      value={editingText}
-                      onChange={(event) => setEditingText(event.target.value)}
+                      text={editingText}
+                      marks={editingMarks}
+                      onMarksChange={setEditingMarks}
+                      onTextChange={(text, marks) => { setEditingText(text); setEditingMarks(marks); }}
                       className={`form-field creator-output-editor ${item.format === "structuredPrompt" ? "is-structured" : ""}`}
                     />
                     <div className="creator-inline-edit-actions"><button type="button" className="ghost-button px-3 py-2 text-sm" onClick={() => setEditingFormat(null)}>取消</button><button type="button" data-enter-submit className="gradient-button px-3 py-2 text-sm" onClick={() => saveEditing(item.format)}><Check className="h-3.5 w-3.5" />确认</button></div>
                     </div>
                   ) : (
-                    <pre role="button" tabIndex={0} aria-label={`编辑${item.title}`} title="点击编辑提示词" onClick={() => startEditing(item.format, item.text)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); startEditing(item.format, item.text); } }} className={`creator-output-content is-editable ${item.format === "structuredPrompt" ? "is-structured" : ""}`}>{item.text}</pre>
+                    <PromptText text={item.text} marks={resultMarks[item.format]} aria-label={`编辑${item.title}`} onReadEdit={() => startEditing(item.format, item.text)} onMarksChange={marks => saveResultMarks(item.format, marks)} className={`creator-output-content is-editable ${item.format === "structuredPrompt" ? "is-structured" : ""}`} />
                   ) : null}
                 </article>
               );

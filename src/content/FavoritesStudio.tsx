@@ -1,5 +1,7 @@
 import { JellyState } from "../components/JellyState";
 import { CollectionFolder } from "./CollectionFolder";
+import { PromptText } from "../components/PromptText";
+import { remapMarks, type PromptMark } from "../lib/prompt-marks";
 import { FolderColorMenu, FolderColorPicker } from "./FolderColorPicker";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
@@ -38,7 +40,7 @@ import type {
 } from "../types/prompt";
 import type { PromptFolder } from "../types/prompt";
 import type { ExtensionSettings } from "../types/settings";
-import { formatPromptGroup, getPromptGroup } from "../lib/prompt-group";
+import { formatPromptGroup, getPromptGroup, getPromptContentMarks } from "../lib/prompt-group";
 import { belongsToFolder, collectPromptToFolder, removePromptFromFolder, moveOrderedId, movePromptToTop, reorderPromptRecords, sortPromptRecords } from "../lib/prompt-organization";
 import { PromptFolderPicker } from "./PromptFolderPicker";
 import { PromptCard } from "./PromptCard";
@@ -76,7 +78,7 @@ export function FavoritesStudio(props: {
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [editingGroupRecord, setEditingGroupRecord] = useState<SavedPromptRecord | null>(null);
   const [promptNotesDraft, setPromptNotesDraft] = useState("");
-  const [promptStepsDraft, setPromptStepsDraft] = useState([{ name: "", content: "" }]);
+  const [promptStepsDraft, setPromptStepsDraft] = useState<import("../types/prompt").PromptGroup["steps"]>([{ name: "", content: "" }]);
   const [isSavingPrompt, setIsSavingPrompt] = useState(false);
   const resetPromptDraft = () => {
     setEditingGroupRecord(null);
@@ -210,8 +212,10 @@ export function FavoritesStudio(props: {
   };
 
   const usePromptInImageStudio = async (record: SavedPromptRecord) => {
+    record = favorites.find(item => item.id === record.id) ?? record;
     await saveImageWorkspace({
       prompt: record.content,
+      marks: getPromptContentMarks(record),
       lastUpdatedAt: null,
       source: {
         promptId: record.id,
@@ -227,11 +231,14 @@ export function FavoritesStudio(props: {
     onOpenImageStudio();
   };
 
-  const savePreviewContent = async (record: SavedPromptRecord, content: string) => {
+  const savePreviewContent = async (record: SavedPromptRecord, content: string, marks?: PromptMark[]) => {
+    record = favorites.find(item => item.id === record.id) ?? record;
     const currentVersion = record.version ?? "1.0";
     const [major, minor] = currentVersion.split(".").map((value) => Number(value) || 0);
     const updated = await updateFavoritePrompt(record.id, {
       content,
+      marks: marks ?? remapMarks(record.content, content, record.marks ?? []),
+      variantMarks: { ...record.variantMarks, [record.format]: marks ?? remapMarks(record.content, content, record.variantMarks?.[record.format] ?? record.marks ?? []) },
       tags: recommendPromptTags(content),
       contentVariants: { ...record.contentVariants, [record.format]: content },
       version: `${major}.${minor + 1}`,
@@ -309,7 +316,7 @@ export function FavoritesStudio(props: {
   };
 
   const handleCreatePrompt = async () => {
-    const steps = promptStepsDraft.map((step) => ({ name: step.name.trim(), content: step.content.trim() }));
+    const steps = promptStepsDraft.map((step) => ({ name: step.name.trim(), content: step.content.trim(), marks: remapMarks(step.content, step.content.trim(), step.marks ?? []) }));
     const notes = promptNotesDraft.trim();
     const group = { notes, steps };
     const trimmedPrompt = formatPromptGroup(group);
@@ -539,7 +546,7 @@ export function FavoritesStudio(props: {
                         {promptStepsDraft.length > 1 ? <button type="button" className="icon-button" aria-label={`删除第 ${index + 1} 步`} onClick={() => setPromptStepsDraft((current) => current.filter((_, position) => position !== index))}><Trash2 className="h-4 w-4" /></button> : null}
                       </div>
                       <input value={step.name} aria-label={`第 ${index + 1} 步名称`} onChange={(event) => setPromptStepsDraft((current) => current.map((item, position) => position === index ? { ...item, name: event.target.value } : item))} placeholder="步骤名称（可选）" className="form-field mb-3 w-full rounded-xl px-3 py-2.5 text-sm" />
-                      <textarea value={step.content} aria-label={`第 ${index + 1} 步正文`} onChange={(event) => setPromptStepsDraft((current) => current.map((item, position) => position === index ? { ...item, content: event.target.value } : item))} className="form-field min-h-[140px] w-full resize-y rounded-xl px-3 py-3 text-sm leading-6" placeholder="输入这一步的提示词正文" />
+                      <PromptText editable text={step.content} marks={step.marks} aria-label={`第 ${index + 1} 步正文`} onTextChange={(content, marks) => setPromptStepsDraft(current => current.map((item, position) => position === index ? { ...item, content, marks } : item))} onMarksChange={marks => setPromptStepsDraft(current => current.map((item, position) => position === index ? { ...item, marks } : item))} className="form-field min-h-[140px] w-full resize-y rounded-xl px-3 py-3 text-sm leading-6" placeholder="输入这一步的提示词正文" />
                     </section>
                   ))}
                 </div>
@@ -672,7 +679,7 @@ export function FavoritesStudio(props: {
         isFavorite={Boolean(previewRecord && (previewRecord.isFavorite ?? false))}
         onClose={() => setPreviewRecord(null)}
         onCopy={() => { if (previewRecord) void handleCopy(previewRecord); }}
-        onSave={(content) => { if (previewRecord) void savePreviewContent(previewRecord, content); }}
+        onSave={(content, marks) => { if (previewRecord) void savePreviewContent(previewRecord, content, marks); }}
         onToggleFavorite={() => { if (previewRecord) void toggleRecordFavorite(previewRecord); }}
         onUsePrompt={() => { if (previewRecord) void usePromptInImageStudio(previewRecord); }}
         onOptimize={() => { if (previewRecord) setOptimizationRecord(previewRecord); }}

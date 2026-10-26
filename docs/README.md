@@ -1,5 +1,7 @@
 # 文档导航
 
+- [画重点使用与性能测量](PROMPT_EMPHASIS.md)：预设／自定义色板、保存、备份和范围说明。
+
 - 项目介绍：[简体中文](../README.md) · [English](../README.en.md)。
 - [v1.4.0 版本说明](RELEASE_v1.4.0.md)：果冻状态、macOS 置顶和图片复制修复。
 

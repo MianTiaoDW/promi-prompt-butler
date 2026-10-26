@@ -1,6 +1,7 @@
 import { storageGet, storageSet } from "./storage";
 import { DEFAULT_PROMPT_SEEDS, RETIRED_SEED_IDS } from "./seed-prompts";
 import { formatPromptGroup } from "./prompt-group";
+import { remapMarks } from "./prompt-marks";
 import { validateFolderColor } from "./folder-colors";
 import type {
   PromptFolder,
@@ -204,6 +205,8 @@ export async function savePromptToFavorites(input: {
   isFavorite?: boolean;
   isFrequent?: boolean;
   contentVariants?: SavedPromptRecord["contentVariants"];
+  marks?: SavedPromptRecord["marks"];
+  variantMarks?: SavedPromptRecord["variantMarks"];
 }) {
   const existing = await storageGet<SavedPromptRecord[]>(
     PROMPT_STORAGE_KEYS.favorites,
@@ -231,7 +234,9 @@ export async function savePromptToFavorites(input: {
     version: "1.0",
     usageCount: 0,
     lastUsed: "",
-    contentVariants: input.contentVariants
+    contentVariants: input.contentVariants,
+    marks: input.marks,
+    variantMarks: input.variantMarks
   };
 
   await storageSet(PROMPT_STORAGE_KEYS.favorites, [record, ...existing], existing);
@@ -241,7 +246,7 @@ export async function savePromptToFavorites(input: {
 
 export async function updateFavoritePrompt(
   promptId: string,
-  patch: Partial<Pick<SavedPromptRecord, "group" | "title" | "content" | "category" | "tags" | "isFavorite" | "isFrequent" | "lastUsedAt" | "versions" | "usedCount" | "linkedImages" | "exampleImageIds" | "imageStorageVersion" | "version" | "usageCount" | "lastUsed" | "source" | "contentVariants">>
+  patch: Partial<Pick<SavedPromptRecord, "group" | "title" | "content" | "category" | "tags" | "isFavorite" | "isFrequent" | "lastUsedAt" | "versions" | "usedCount" | "linkedImages" | "exampleImageIds" | "imageStorageVersion" | "version" | "usageCount" | "lastUsed" | "source" | "contentVariants" | "marks" | "variantMarks">>
 ) {
   const existing = await storageGet<SavedPromptRecord[]>(
     PROMPT_STORAGE_KEYS.favorites,
@@ -249,15 +254,19 @@ export async function updateFavoritePrompt(
   );
   const usageKeys = new Set(["lastUsedAt", "lastUsed", "usedCount", "usageCount"]);
   const changesAssetContent = Object.keys(patch).some((key) => !usageKeys.has(key));
-  const nextRecords = existing.map((record) =>
-    record.id === promptId
-      ? {
-          ...record,
-          ...patch,
-          ...(changesAssetContent ? { updatedAt: new Date().toISOString() } : {})
-        }
-      : record
-  );
+  const nextRecords = existing.map(record => {
+    if (record.id !== promptId) return record;
+    const annotations: Partial<SavedPromptRecord> = {};
+    if (patch.content !== undefined && patch.content !== record.content && patch.marks === undefined) annotations.marks = remapMarks(record.content, patch.content, record.marks ?? []);
+    if (patch.contentVariants && !patch.variantMarks) {
+      annotations.variantMarks = { ...record.variantMarks };
+      for (const format of Object.keys(patch.contentVariants) as PromptOutputFormat[]) {
+        const before = record.contentVariants?.[format] ?? (format === record.format ? record.content : "");
+        annotations.variantMarks[format] = remapMarks(before, patch.contentVariants[format] ?? "", record.variantMarks?.[format] ?? (format === record.format ? record.marks ?? [] : []));
+      }
+    }
+    return { ...record, ...patch, ...annotations, ...(changesAssetContent ? { updatedAt: new Date().toISOString() } : {}) };
+  });
 
   const savedRecords = await storageSet(PROMPT_STORAGE_KEYS.favorites, nextRecords, existing);
 

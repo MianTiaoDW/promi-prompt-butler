@@ -1,4 +1,5 @@
 import { ImagePreviewModal } from "./ImagePreviewModal";
+import { PromptInline } from "../components/PromptText";
 import { FavoriteButton } from "./FavoriteButton";
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
@@ -96,7 +97,7 @@ export function PromptCard({
       <div className="flex min-w-0 flex-1 gap-4">
       <button type="button" className="prompt-card-open" onClick={onOpen}>
         <h3>{title}</h3>
-        <p>{collected ? group.notes || group.steps[0]?.content : record.content}</p>
+        <p><PromptInline text={collected ? group.notes || group.steps[0]?.content || "" : record.content} marks={collected ? group.notes ? undefined : group.steps[0]?.marks : record.marks ?? record.variantMarks?.[record.format]} /></p>
       </button>
       {exampleUrl ? <button type="button" className="prompt-card-image-preview w-[32%] max-w-[160px] shrink-0 self-stretch overflow-hidden rounded-xl" onClick={() => setIsImagePreviewOpen(true)} aria-label="查看提示词示例图"><img src={exampleUrl} alt={`${title}的示例图`} className="h-full min-h-[100px] w-full object-cover" loading="lazy" /><span className="prompt-card-image-eye"><Eye className="h-5 w-5" /></span></button> : null}
       </div>

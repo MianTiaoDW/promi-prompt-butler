@@ -1,4 +1,19 @@
 import type { PromptGroup, SavedPromptRecord } from "../types/prompt";
+import { normalizeMarks, type PromptMark } from "./prompt-marks";
+
+export function getPromptContentMarks(record: SavedPromptRecord): PromptMark[] {
+  if (!record.group) return normalizeMarks(record.content, record.marks ?? record.variantMarks?.[record.format] ?? []);
+  const { group } = record;
+  const result: PromptMark[] = [];
+  let offset = group.notes ? `备注：${group.notes}\n\n`.length : 0;
+  group.steps.forEach((step, index) => {
+    const header = group.steps.length === 1 && !step.name ? "" : `第 ${index + 1} 步${step.name ? ` · ${step.name}` : ""}\n`;
+    offset += header.length;
+    result.push(...normalizeMarks(step.content, step.marks ?? []).map(mark => ({ ...mark, start: mark.start + offset, end: mark.end + offset })));
+    offset += step.content.length + 2;
+  });
+  return normalizeMarks(record.content, result);
+}
 
 export function isCollectedPrompt(record: SavedPromptRecord) {
   return record.source !== "creator" && record.source !== "ai-generated";
@@ -26,5 +41,5 @@ export function getPromptGroup(record: SavedPromptRecord): PromptGroup {
     const separator = record.content.indexOf("\n\n");
     return { notes: record.content.slice(3, separator), steps: [{ name: "", content: record.content.slice(separator + 2) }] };
   }
-  return { notes: "", steps: [{ name: "", content: record.content }] };
+  return { notes: "", steps: [{ name: "", content: record.content, marks: record.marks }] };
 }

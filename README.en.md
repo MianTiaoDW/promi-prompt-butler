@@ -23,6 +23,8 @@ The current sharing build is **v1.4.0**. Bring your own model provider and API k
 
 ## Features
 
+- **Emphasis (main development build):** select prompt text to apply background or text colors, with 10 reading presets, custom HSV / HEX, background opacity, theme previews, contrast warnings and a readability adjustment. Annotations persist separately; copy and model requests stay plain text. [Details and measurements (Chinese)](docs/PROMPT_EMPHASIS.md). Existing v1.4.0 release packages do not include this feature; build current main to use it.
+
 - **Reference images:** add files or drag them into the creation area, up to 8 images in the received order.
 - **Folders:** ten colors, drag sorting, and inline title editing by double-click. Removing a prompt from a folder only removes that association; the prompt remains in All. Deleting a folder keeps its prompts.
 - **Example images:** up to 3 per prompt. Hover for the eye icon and click to enlarge. Use the corner X to delete an image or the button below it to choose the library card cover. Full-size previews support copying and downloading; JPEG / WebP images are converted to PNG for clipboard copying.

@@ -1,4 +1,5 @@
 import type { ProviderId } from "./settings";
+import type { PromptMark } from "../lib/prompt-marks";
 
 export interface ReferenceImage {
   dataUrl: string;
@@ -98,10 +99,12 @@ export interface PromptLinkedImage {
 
 export interface PromptGroup {
   notes: string;
-  steps: Array<{ name: string; content: string }>;
+  steps: Array<{ name: string; content: string; marks?: PromptMark[] }>;
 }
 
 export interface SavedPromptRecord {
+  marks?: PromptMark[];
+  variantMarks?: Partial<Record<PromptOutputFormat, PromptMark[]>>;
   folderIds?: string[];
   group?: PromptGroup;
   id: string;
@@ -131,6 +134,9 @@ export interface SavedPromptRecord {
 }
 
 export interface PromptWorkspaceState {
+  requirementMarks?: PromptMark[];
+  roleMarks?: PromptMark[];
+  resultMarks?: { generatedAt: string; variants: Partial<Record<PromptOutputFormat, PromptMark[]>> };
   rolePreset: string;
   rolePresetLocked: boolean;
   userRequirement: string;

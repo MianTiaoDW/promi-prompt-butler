@@ -6,6 +6,7 @@ export function finishInputComposition(event: CompositionEvent<HTMLElement>) { c
 
 export function confirmInputOnBlankClick(event: PointerEvent<HTMLElement>) {
   if (event.button !== 0 || !(event.target instanceof Element)) return;
+  if (event.target.closest(".prompt-color-panel")) return;
   // Controls retain their own actions, especially Cancel and switching fields.
   if (event.target.closest("button, input, textarea, select, label, a, [role='button'], [role='radio'], [contenteditable='true']")) return;
   const root = event.currentTarget.getRootNode() as Document | ShadowRoot;

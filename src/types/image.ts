@@ -63,6 +63,7 @@ export type ImageGenerationResult =
   | ImageGenerationFailure;
 
 export interface ImageWorkspaceState {
+  marks?: import("../lib/prompt-marks").PromptMark[];
   prompt: string;
   lastUpdatedAt: string | null;
   source?: {
