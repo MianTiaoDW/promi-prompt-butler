@@ -1,0 +1,26 @@
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const { build } = require('esbuild');
+(async () => {
+  const bundle = await build({ entryPoints: [path.resolve('src/lib/prompt-marks.ts')], bundle: true, write: false, platform: 'node', format: 'cjs' });
+  const module = { exports: {} };
+  new Function('module', 'exports', 'require', bundle.outputFiles[0].text)(module, module.exports, require);
+  const { normalizeMarks, toggleBold, isRangeBold, remapMarks, clearMarks } = module.exports;
+  const bold = { kind: 'bold', light: '#000000', dark: '#ffffff', start: 0, end: 6 };
+  const color = { kind: 'text', light: '#112233', dark: '#ddeeff', start: 0, end: 6 };
+  assert.deepEqual(normalizeMarks('abcdef', [bold]), [bold], 'Bold must survive mark validation');
+  const marks = toggleBold('abcdef', [color], 0, 6);
+  assert.equal(isRangeBold('abcdef', marks, 0, 6), true);
+  assert.deepEqual(marks.filter(m => m.kind === 'text'), [color]);
+  const partial = toggleBold('abcdef', marks, 2, 4);
+  assert.deepEqual(partial.filter(m => m.kind === 'bold').map(m => [m.start, m.end]), [[0, 2], [4, 6]]);
+  assert.equal(isRangeBold('abcdef', partial, 0, 6), false, 'A gap is a mixed selection');
+  assert.equal(isRangeBold('abcdef', toggleBold('abcdef', partial, 0, 6), 0, 6), true, 'Mixed selection becomes fully bold');
+  assert.equal(isRangeBold('abcdef', [{ ...bold, end: 3 }, { ...bold, start: 3 }], 0, 6), true, 'Adjacent spans count as fully bold');
+  assert.deepEqual(toggleBold('abcdef', marks, 0, 6), [color], 'Toggling off preserves colors');
+  assert.deepEqual(toggleBold('abcdef', marks, 1, 1), marks);
+  assert.deepEqual(remapMarks('abcdef', 'Xabcdef', [bold]), [{ ...bold, start: 1, end: 7 }]);
+  assert.deepEqual(clearMarks('abcdef', marks, 0, 6), []);
+  assert.equal(isRangeBold('A😀B', toggleBold('A😀B', [], 2, 3), 1, 3), true);
+  console.log('PASS: bold normalization, toggle/mixed ranges, color independence, edit offsets and Unicode');
+})().catch(error => { console.error(error); process.exitCode = 1; });

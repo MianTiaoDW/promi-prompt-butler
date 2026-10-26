@@ -1,4 +1,4 @@
-export type MarkKind = 'background' | 'text';
+export type MarkKind = 'background' | 'text' | 'bold';
 export type MarkTheme = 'light' | 'dark';
 
 export interface PromptMark {
@@ -33,7 +33,7 @@ export function normalizeMarks(text: string, marks: unknown): PromptMark[] {
   for (const value of marks) {
     if (!value || typeof value !== 'object') continue;
     const mark = value as Partial<PromptMark>;
-    if (mark.kind !== 'background' && mark.kind !== 'text') continue;
+    if (mark.kind !== 'background' && mark.kind !== 'text' && mark.kind !== 'bold') continue;
     if (typeof mark.light !== 'string' || !hex.test(mark.light) || typeof mark.dark !== 'string' || !hex.test(mark.dark)) continue;
     if (mark.opacity !== undefined && (typeof mark.opacity !== 'number' || !Number.isFinite(mark.opacity) || mark.opacity < 0 || mark.opacity > 1)) continue;
     if (typeof mark.start !== 'number' || typeof mark.end !== 'number') continue;
@@ -65,6 +65,26 @@ export function applyMark(text: string, marks: unknown, start: number, end: numb
   const added = normalizeMarks(text, [{ ...style, start, end }])[0];
   if (!added) return normalizeMarks(text, marks);
   return normalizeMarks(text, [...clearMarks(text, marks, added.start, added.end, added.kind), added]);
+}
+
+export function isRangeBold(text: string, marks: unknown, start: number, end: number): boolean {
+  const range = selectionRange(text, start, end);
+  if (!range) return false;
+  let covered = range[0];
+  for (const mark of normalizeMarks(text, marks)) {
+    if (mark.kind !== 'bold' || mark.end <= covered) continue;
+    if (mark.start > covered) return false;
+    covered = Math.max(covered, mark.end);
+    if (covered >= range[1]) return true;
+  }
+  return false;
+}
+
+export function toggleBold(text: string, marks: unknown, start: number, end: number): PromptMark[] {
+  return isRangeBold(text, marks, start, end)
+    ? clearMarks(text, marks, start, end, 'bold')
+    // Retain the shared schema; these neutral colors are never rendered for bold.
+    : applyMark(text, marks, start, end, { kind: 'bold', light: '#000000', dark: '#ffffff' });
 }
 
 export function remapMarks(before: string, after: string, marks: unknown): PromptMark[] {

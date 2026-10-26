@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type TextareaHTMLAttributes } from "react";
 import { createPortal } from "react-dom";
-import { applyMark, clearMarks, getMarkedSegments, normalizeMarks, remapMarks, type MarkKind, type MarkTheme, type PromptMark } from "../lib/prompt-marks";
+import { applyMark, clearMarks, getMarkedSegments, isRangeBold, normalizeMarks, remapMarks, toggleBold, type MarkKind, type MarkTheme, type PromptMark } from "../lib/prompt-marks";
 import { compositeColor, contrastRatio, hexToHsv, hsvToHex, MARK_THEME_BASES, normalizeHex, PRESET_MARK_COLORS, readableTextColor } from "../lib/mark-colors";
 import { storageGet, storageSet } from "../lib/storage";
 import { showToast } from "../lib/toast";
@@ -31,6 +31,7 @@ export function PromptInline({ text, marks }: { text: string; marks?: PromptMark
     const background = segment.marks.filter(mark => mark.kind === "background").slice(-1)[0];
     const foreground = segment.marks.filter(mark => mark.kind === "text").slice(-1)[0];
     return <span key={segment.start} className="prompt-inline-mark" style={{
+      fontWeight: segment.marks.some(mark => mark.kind === "bold") ? 700 : undefined,
       "--prompt-mark-light-bg": background ? compositeColor(background.light, MARK_THEME_BASES.light.background, background.opacity ?? .45) : undefined,
       "--prompt-mark-dark-bg": background ? compositeColor(background.dark, MARK_THEME_BASES.dark.background, background.opacity ?? .45) : undefined,
       "--prompt-mark-light-text": foreground?.light, "--prompt-mark-dark-text": foreground?.dark
@@ -42,7 +43,8 @@ function MarkedContent({ text, marks, theme }: { text: string; marks: PromptMark
   return <>{getMarkedSegments(text, marks).map(segment => {
     const background = segment.marks.filter(mark => mark.kind === "background").slice(-1)[0];
     const foreground = segment.marks.filter(mark => mark.kind === "text").slice(-1)[0];
-    return <span key={segment.start} data-prompt-mark={segment.marks.length ? "true" : undefined} data-mark-start={segment.start} data-mark-end={segment.start + segment.text.length} style={{
+    return <span key={segment.start} data-prompt-mark={segment.marks.length ? "true" : undefined} data-mark-bold={segment.marks.some(mark => mark.kind === "bold") ? "true" : undefined} data-mark-start={segment.start} data-mark-end={segment.start + segment.text.length} style={{
+      fontWeight: segment.marks.some(mark => mark.kind === "bold") ? 700 : undefined,
       backgroundColor: background ? compositeColor(background[theme], MARK_THEME_BASES[theme].background, background.opacity ?? .45) : undefined,
       color: foreground?.[theme], "--mark-live-text": foreground?.[theme] ?? MARK_THEME_BASES[theme].text
     } as CSSProperties}>{segment.text}</span>;
@@ -55,7 +57,7 @@ function ColorPanel({ selection, text, marks, theme, onApply, onClose, onPreview
   onPreview: (marks: PromptMark[]) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [kind, setKind] = useState<MarkKind>("background");
+  const [kind, setKind] = useState<Exclude<MarkKind, "bold">>("background");
   const existing = marks.find(mark => mark.start < selection.end && mark.end > selection.start && mark.kind === "background");
   const [colors, setColors] = useState({ light: existing?.light ?? PRESET_MARK_COLORS[2].background.light, dark: existing?.dark ?? PRESET_MARK_COLORS[2].background.dark });
   const [opacity, setOpacity] = useState(existing?.opacity ?? .45);
@@ -102,7 +104,7 @@ function ColorPanel({ selection, text, marks, theme, onApply, onClose, onPreview
     catch { showToast("重点标记未保存，请重试", "error"); }
     finally { setBusy(false); }
   };
-  const changeMode = (next: MarkKind) => {
+  const changeMode = (next: Exclude<MarkKind, "bold">) => {
     setKind(next);
     const found = marks.find(mark => mark.kind === next && mark.start < selection.end && mark.end > selection.start);
     const pair = found ?? (next === "background" ? PRESET_MARK_COLORS[2].background : PRESET_MARK_COLORS[5].text);
@@ -113,6 +115,7 @@ function ColorPanel({ selection, text, marks, theme, onApply, onClose, onPreview
     onPointerDown={event => { if (event.target instanceof Element && event.target.closest("button")) frame.flush(); event.stopPropagation(); }} onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}
     onKeyDownCapture={event => { if (event.key === "Enter") event.stopPropagation(); }}>
     <header><strong>画重点</strong><button type="button" aria-label="关闭重点色板" onClick={onClose}>×</button></header>
+    <div className="mark-bold-toolbar"><button type="button" aria-label="加粗" title="加粗／取消加粗" aria-pressed={isRangeBold(text, marks, selection.start, selection.end)} disabled={busy} onClick={() => void persist(toggleBold(text, marks, selection.start, selection.end))}><b aria-hidden="true">B</b><span>加粗</span></button></div>
     <div className="mark-mode-tabs">{(["background", "text"] as const).map(value => <button type="button" key={value} aria-pressed={kind === value} onClick={() => changeMode(value)}>{value === "background" ? "背景高亮" : "文字颜色"}</button>)}</div>
     <label>阅读预设</label><div className="mark-swatches">{PRESET_MARK_COLORS.map(preset => <button type="button" key={preset.name} aria-label={`${preset.name}预设`} title={preset.name} style={{ background: (kind === "background" ? preset.background : preset.text)[previewTheme] }} onClick={() => selectPreset(kind === "background" ? preset.background : preset.text)} />)}</div>
     <div className="mark-theme-tabs"><span>预览及调色</span>{(["light", "dark"] as const).map(value => <button type="button" key={value} aria-pressed={previewTheme === value} onClick={() => { setPreviewTheme(value); setHexDraft(colors[value]); setHue(hexToHsv(colors[value]).h); }}>{value === "light" ? "日间" : "夜间"}</button>)}</div>

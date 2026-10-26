@@ -4079,3 +4079,10 @@
 .prompt-mark-field .is-mark-preview::selection, .prompt-mark-field .is-mark-preview *::selection { background: transparent; color: inherit; }
 .prompt-mark-field textarea.is-mark-preview::selection { -webkit-text-fill-color: transparent; color: transparent; }
 .prompt-mark-field .is-mark-preview [data-mark-start]::selection { color: var(--mark-live-text); -webkit-text-fill-color: var(--mark-live-text); }
+
+.mark-bold-toolbar { display: flex; margin: 8px 0; }
+.mark-bold-toolbar button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 12px; color: var(--text-primary); }
+.mark-bold-toolbar button[aria-pressed="true"] { background: var(--accent-primary); color: #fff; }
+.mark-bold-toolbar b { font-size: 16px; font-weight: 800; }
+/* Preserve textarea glyph advances so selection, caret and mirror stay aligned. */
+.prompt-mark-mirror [data-mark-bold="true"] { font-weight: inherit !important; -webkit-text-stroke: .35px currentColor; }
