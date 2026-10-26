@@ -97,6 +97,30 @@ function size(directory) {
       }, value);
     }
 
+    // A live preview must stay visible and must not write to storage until Apply.
+    await selectRange(reader, 5, 9);
+    await panel.getByRole('button', { name: '绿色预设', exact: true }).click();
+    await page.waitForFunction(() => Boolean(document.querySelector('.prompt-mark-field > pre [data-prompt-mark]')));
+    let live = await reader.locator('[data-prompt-mark]').filter({ hasText: '重点信息' }).boundingBox();
+    let popup = await panel.boundingBox();
+    assert(live && popup && (popup.x >= live.x + live.width || popup.x + popup.width <= live.x || popup.y >= live.y + live.height || popup.y + popup.height <= live.y), 'Palette must not cover selected words');
+    assert.equal((await saved()).find(item => item.id === fixture.id).group.steps[0].marks, undefined, 'Preview must not persist marks');
+    await panel.getByRole('button', { name: '关闭重点色板', exact: true }).click();
+    assert.equal(await reader.locator('[data-prompt-mark]').count(), 0, 'Cancel restores original appearance');
+    await selectRange(reader, 5, 9);
+    const square = panel.locator('.mark-sv-square'); await square.scrollIntoViewIfNeeded();
+    const squareRect = await square.boundingBox();
+    await page.mouse.move(squareRect.x + 20, squareRect.y + 20); await page.mouse.down();
+    await square.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      for(let i=0;i<100;i++) element.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, bubbles: true, clientX: rect.left + rect.width * i / 100, clientY: rect.top + rect.height / 2 }));
+      element.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, bubbles: true, clientX: rect.left, clientY: rect.top + rect.height / 2 }));
+    });
+    await page.mouse.up();
+    await page.waitForFunction(() => document.querySelector('[aria-label="颜色 HEX"]')?.value === '#808080');
+    assert.equal((await saved()).find(item => item.id === fixture.id).group.steps[0].marks, undefined, 'Dragging only previews');
+    await panel.getByRole('button', { name: '关闭重点色板', exact: true }).click();
+
     await selectRange(reader, 5, 9);
     assert.equal(await panel.getByRole('button', { name: /预设$/ }).count(), 10);
     await panel.getByRole('button', { name: '黄色预设', exact: true }).click();

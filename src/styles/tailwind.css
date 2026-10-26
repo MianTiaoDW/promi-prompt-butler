@@ -4074,3 +4074,8 @@
 .prompt-color-panel button:disabled { opacity: .5; }
 .prompt-inline-mark { background: var(--prompt-mark-light-bg, transparent); color: var(--prompt-mark-light-text, inherit); border-radius: 2px; }
 [data-theme="dark"] .prompt-inline-mark, :host([data-theme="dark"]) .prompt-inline-mark { background: var(--prompt-mark-dark-bg, transparent); color: var(--prompt-mark-dark-text, inherit); }
+.prompt-color-panel .mark-swatches { gap: 4px; }
+.mark-color-commit { position: sticky; bottom: -14px; padding: 10px 14px 14px; margin: 0 -14px -14px; background: var(--bg-prompt-modal); }
+.prompt-mark-field .is-mark-preview::selection, .prompt-mark-field .is-mark-preview *::selection { background: transparent; color: inherit; }
+.prompt-mark-field textarea.is-mark-preview::selection { -webkit-text-fill-color: transparent; color: transparent; }
+.prompt-mark-field .is-mark-preview [data-mark-start]::selection { color: var(--mark-live-text); -webkit-text-fill-color: var(--mark-live-text); }
