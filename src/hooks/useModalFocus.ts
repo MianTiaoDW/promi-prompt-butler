@@ -36,7 +36,7 @@ export function useModalFocus<T extends HTMLElement>(active: boolean, onClose: (
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        const colorPanel = dialog.querySelector(".prompt-color-panel");
+        const colorPanel = dialog.querySelector(".prompt-color-panel, .prompt-format-toolbar");
         if (colorPanel) { colorPanel.dispatchEvent(new Event("prompt-mark-dismiss")); return; }
         onCloseRef.current();
         return;

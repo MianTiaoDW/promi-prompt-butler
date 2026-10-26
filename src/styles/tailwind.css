@@ -4086,3 +4086,13 @@
 .mark-bold-toolbar b { font-size: 16px; font-weight: 800; }
 /* Preserve textarea glyph advances so selection, caret and mirror stay aligned. */
 .prompt-mark-mirror [data-mark-bold="true"] { font-weight: inherit !important; -webkit-text-stroke: .35px currentColor; }
+
+.prompt-format-toolbar { position: absolute; z-index: 2147483646; display: flex; align-items: center; gap: 3px; padding: 4px 5px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--bg-prompt-modal); color: var(--text-primary); box-shadow: var(--shadow-floating); user-select: none; }
+.prompt-format-toolbar button { display: grid; place-items: center; width: 32px; height: 32px; min-width: 0; flex: 1; border-radius: 6px; font-size: 16px; line-height: 1; }
+.prompt-format-toolbar button:hover { background: var(--bg-surface-3); }
+.prompt-format-toolbar button[aria-pressed="true"] { background: var(--accent-primary); color: #fff; }
+.prompt-format-toolbar button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 1px; }
+.prompt-format-toolbar button:disabled { opacity: .5; }
+.format-highlight { border-bottom: 3px solid #e8c64a; padding-bottom: 1px; }
+.format-text-color { font-weight: 700; border-bottom: 3px solid #1271ff; padding-bottom: 1px; }
+.format-toolbar-divider { flex: 0 0 1px; height: 18px; background: var(--border-strong); margin: 0 2px; }

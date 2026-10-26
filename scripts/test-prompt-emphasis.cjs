@@ -83,6 +83,7 @@ function size(directory) {
         selection.removeAllRanges(); selection.addRange(domRange);
         element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
       }, { start, end });
+      await page.getByRole("toolbar", { name: "文字格式工具栏" }).getByRole("button", { name: "背景高亮", exact: true }).click();
       await panel.waitFor();
     }
     async function apply() {

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type TextareaHTMLAttributes } from "react";
+import { Copy, Eraser, PencilLine, X, ArrowLeft } from "./PromiIcons";
 import { createPortal } from "react-dom";
 import { applyMark, clearMarks, getMarkedSegments, isRangeBold, normalizeMarks, remapMarks, toggleBold, type MarkKind, type MarkTheme, type PromptMark } from "../lib/prompt-marks";
 import { compositeColor, contrastRatio, hexToHsv, hsvToHex, MARK_THEME_BASES, normalizeHex, PRESET_MARK_COLORS, readableTextColor } from "../lib/mark-colors";
 import { storageGet, storageSet } from "../lib/storage";
 import { showToast } from "../lib/toast";
-import { latestFrame, placeMarkPanel, type MarkSelectionBounds } from "../lib/mark-panel-layout";
+import { latestFrame, placeMarkPanel, placeMarkToolbar, type MarkSelectionBounds } from "../lib/mark-panel-layout";
 
 type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange"> & {
   text: string; marks?: PromptMark[]; editable?: boolean;
@@ -51,15 +52,17 @@ function MarkedContent({ text, marks, theme }: { text: string; marks: PromptMark
   })}</>;
 }
 
-function ColorPanel({ selection, text, marks, theme, onApply, onClose, onPreview }: {
+function ColorPanel({ selection, text, marks, theme, onApply, onClose, onPreview, initialKind = "background", onBack }: {
   selection: SelectionRange; text: string; marks: PromptMark[]; theme: MarkTheme;
   onApply: (marks: PromptMark[]) => void | Promise<void>; onClose: () => void;
   onPreview: (marks: PromptMark[]) => void;
+  initialKind?: Exclude<MarkKind, "bold">; onBack?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [kind, setKind] = useState<Exclude<MarkKind, "bold">>("background");
-  const existing = marks.find(mark => mark.start < selection.end && mark.end > selection.start && mark.kind === "background");
-  const [colors, setColors] = useState({ light: existing?.light ?? PRESET_MARK_COLORS[2].background.light, dark: existing?.dark ?? PRESET_MARK_COLORS[2].background.dark });
+  const [kind, setKind] = useState<Exclude<MarkKind, "bold">>(initialKind);
+  const existing = marks.find(mark => mark.start < selection.end && mark.end > selection.start && mark.kind === initialKind);
+  const initialColors = initialKind === "background" ? PRESET_MARK_COLORS[2].background : PRESET_MARK_COLORS[5].text;
+  const [colors, setColors] = useState({ light: existing?.light ?? initialColors.light, dark: existing?.dark ?? initialColors.dark });
   const [opacity, setOpacity] = useState(existing?.opacity ?? .45);
   const [previewTheme, setPreviewTheme] = useState(theme);
   const [hexDraft, setHexDraft] = useState(colors[theme]);
@@ -114,7 +117,7 @@ function ColorPanel({ selection, text, marks, theme, onApply, onClose, onPreview
   return createPortal(<div ref={ref} className="prompt-color-panel" role="region" aria-label="重点标记色板" data-no-drag style={position}
     onPointerDown={event => { if (event.target instanceof Element && event.target.closest("button")) frame.flush(); event.stopPropagation(); }} onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}
     onKeyDownCapture={event => { if (event.key === "Enter") event.stopPropagation(); }}>
-    <header><strong>画重点</strong><button type="button" aria-label="关闭重点色板" onClick={onClose}>×</button></header>
+    <header>{onBack ? <button type="button" aria-label="返回文字工具栏" title="返回文字工具栏" onClick={onBack}><ArrowLeft className="h-4 w-4" /></button> : null}<strong>画重点</strong><button type="button" aria-label="关闭重点色板" onClick={onClose}>×</button></header>
     <div className="mark-bold-toolbar"><button type="button" aria-label="加粗" title="加粗／取消加粗" aria-pressed={isRangeBold(text, marks, selection.start, selection.end)} disabled={busy} onClick={() => void persist(toggleBold(text, marks, selection.start, selection.end))}><b aria-hidden="true">B</b><span>加粗</span></button></div>
     <div className="mark-mode-tabs">{(["background", "text"] as const).map(value => <button type="button" key={value} aria-pressed={kind === value} onClick={() => changeMode(value)}>{value === "background" ? "背景高亮" : "文字颜色"}</button>)}</div>
     <label>阅读预设</label><div className="mark-swatches">{PRESET_MARK_COLORS.map(preset => <button type="button" key={preset.name} aria-label={`${preset.name}预设`} title={preset.name} style={{ background: (kind === "background" ? preset.background : preset.text)[previewTheme] }} onClick={() => selectPreset(kind === "background" ? preset.background : preset.text)} />)}</div>
@@ -143,6 +146,55 @@ function ColorPanel({ selection, text, marks, theme, onApply, onClose, onPreview
       void storageSet("prompt-butler-mark-recent-colors", nextRecent).catch(() => {});
       void persist(panelMarks);
     }}>{busy ? "保存中…" : "应用标记"}</button></div>
+  </div>, selection.host);
+}
+
+function SelectionTools({ selection, text, marks, theme, onApply, onClose, onPreview, onResetPreview }: {
+  selection: SelectionRange; text: string; marks: PromptMark[]; theme: MarkTheme;
+  onApply: (marks: PromptMark[]) => void | Promise<void>; onClose: () => void;
+  onPreview: (marks: PromptMark[]) => void; onResetPreview: () => void;
+}) {
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [colorKind, setColorKind] = useState<Exclude<MarkKind, "bold"> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [position, setPosition] = useState({ left: 8, top: 8, width: 228, height: 42 });
+  useLayoutEffect(() => {
+    if (colorKind) return;
+    const place = () => setPosition(placeMarkToolbar(selection.host.getBoundingClientRect(), selection.bounds, window.innerWidth, window.innerHeight));
+    place();
+    const observer = new ResizeObserver(place); observer.observe(selection.host);
+    window.addEventListener("resize", place);
+    return () => { observer.disconnect(); window.removeEventListener("resize", place); };
+  }, [selection, colorKind]);
+  useEffect(() => {
+    if (colorKind) return;
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); } };
+    const toolbar = toolbarRef.current;
+    toolbar?.addEventListener("prompt-mark-dismiss", onClose);
+    window.addEventListener("keydown", escape, true);
+    return () => { toolbar?.removeEventListener("prompt-mark-dismiss", onClose); window.removeEventListener("keydown", escape, true); };
+  }, [colorKind, onClose]);
+  const persist = async (next: PromptMark[]) => {
+    if (busy) return;
+    setBusy(true);
+    try { await onApply(next); onClose(); }
+    catch { showToast("文字格式未保存，请重试", "error"); }
+    finally { setBusy(false); }
+  };
+  if (colorKind) return <ColorPanel key={colorKind} selection={selection} text={text} marks={marks} theme={theme} initialKind={colorKind} onApply={onApply} onClose={onClose} onPreview={onPreview} onBack={() => { onResetPreview(); setColorKind(null); }} />;
+  return createPortal(<div ref={toolbarRef} className="prompt-format-toolbar" role="toolbar" aria-label="文字格式工具栏" data-no-drag style={position}
+    onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }} onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+    <button type="button" aria-label="加粗" title="加粗／取消加粗" aria-pressed={isRangeBold(text, marks, selection.start, selection.end)} disabled={busy} onClick={() => void persist(toggleBold(text, marks, selection.start, selection.end))}><b>B</b></button>
+    <button type="button" aria-label="背景高亮" title="文字背景高亮" disabled={busy} onClick={() => setColorKind("background")}><span className="format-highlight"><PencilLine className="h-4 w-4" /></span></button>
+    <button type="button" aria-label="文字颜色" title="文字颜色" disabled={busy} onClick={() => setColorKind("text")}><span className="format-text-color">A</span></button>
+    <span className="format-toolbar-divider" aria-hidden="true" />
+    <button type="button" aria-label="复制选中文字" title="复制选中文字" disabled={busy} onClick={() => {
+      if (!navigator.clipboard?.writeText) { showToast("当前页面不支持复制，请在独立窗口中重试", "error"); return; }
+      setBusy(true);
+      void navigator.clipboard.writeText(text.slice(selection.start, selection.end)).then(() => { showToast("已复制选中文字"); onClose(); }).catch(() => showToast("复制失败，请重试", "error")).finally(() => setBusy(false));
+    }}><Copy className="h-4 w-4" /></button>
+    <button type="button" aria-label="清除全部标记" title="清除选区格式" disabled={busy} onClick={() => void persist(clearMarks(text, marks, selection.start, selection.end))}><Eraser className="h-4 w-4" /></button>
+    <button type="button" aria-label="关闭文字工具栏" title="关闭" onClick={onClose}><X className="h-4 w-4" /></button>
   </div>, selection.host);
 }
 
@@ -180,7 +232,7 @@ export function PromptText({ text, marks: rawMarks, editable = false, onTextChan
     const host = selection.host;
     const previousPosition = host.style.position;
     if (getComputedStyle(host).position === "static") host.style.position = "relative";
-    const close = (event: Event) => { const path = event.composedPath(); if (path.some(node => node instanceof Element && node.closest(".prompt-color-panel"))) return; if (!path.includes(wrapper.current!)) { setSelection(null); setPreviewMarks(null); } };
+    const close = (event: Event) => { const path = event.composedPath(); if (path.some(node => node instanceof Element && node.closest(".prompt-color-panel, .prompt-format-toolbar"))) return; if (!path.includes(wrapper.current!)) { setSelection(null); setPreviewMarks(null); } };
     document.addEventListener("pointerdown", close, true);
     return () => { document.removeEventListener("pointerdown", close, true); host.style.position = previousPosition; };
   }, [selection]);
@@ -215,6 +267,6 @@ export function PromptText({ text, marks: rawMarks, editable = false, onTextChan
         setSelection({ start: Number(target.dataset.markStart), end: Number(target.dataset.markEnd), x: rect.left, y: rect.bottom, bounds: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }, host });
       } else if (!selection) onReadEdit?.();
     }} onKeyDown={event => { if ((event.key === "Enter" || event.key === " ") && onReadEdit) { event.preventDefault(); onReadEdit(); } }}><MarkedContent text={text} marks={displayMarks} theme={theme} /></pre>}
-    {selection && onMarksChange ? <ColorPanel key={`${selection.start}:${selection.end}`} selection={selection} text={text} marks={marks} theme={theme} onPreview={preview} onApply={onMarksChange} onClose={dismissPanel} /> : null}
+    {selection && onMarksChange ? <SelectionTools key={`${selection.start}:${selection.end}`} selection={selection} text={text} marks={marks} theme={theme} onPreview={preview} onResetPreview={() => setPreviewMarks(null)} onApply={onMarksChange} onClose={dismissPanel} /> : null}
   </div>;
 }

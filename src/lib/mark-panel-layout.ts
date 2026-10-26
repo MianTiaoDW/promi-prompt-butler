@@ -1,6 +1,17 @@
 interface Host { left: number; top: number; width: number; height: number }
 export interface MarkSelectionBounds { left: number; top: number; right: number; bottom: number }
 
+export function placeMarkToolbar(host: Host, selected: MarkSelectionBounds, viewportWidth: number, viewportHeight: number) {
+  const left = Math.max(host.left, 0) + 8, right = Math.min(host.left + host.width, viewportWidth) - 8;
+  const top = Math.max(host.top, 0) + 8, bottom = Math.min(host.top + host.height, viewportHeight) - 8;
+  const width = Math.min(228, Math.max(100, right - left)), height = 42;
+  const x = Math.max(left, Math.min(right - width, selected.left));
+  const y = selected.top - 8 - height >= top ? selected.top - 8 - height
+    : selected.bottom + 8 + height <= bottom ? selected.bottom + 8
+    : Math.max(top, Math.min(bottom - height, selected.bottom + 8));
+  return { left: x - host.left, top: y - host.top, width, height };
+}
+
 export function placeMarkPanel(host: Host, selected: MarkSelectionBounds, viewportWidth: number, viewportHeight: number) {
   const left = Math.max(host.left, 0) + 10, top = Math.max(host.top, 0) + 10;
   const right = Math.min(host.left + host.width, viewportWidth) - 10, bottom = Math.min(host.top + host.height, viewportHeight) - 10;
