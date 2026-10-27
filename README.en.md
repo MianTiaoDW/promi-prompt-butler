@@ -3,7 +3,7 @@
 <p align="center">Turn ideas into prompts, prompts into images, and useful work into your own library.</p>
 <p align="center"><a href="README.md">简体中文</a> · <strong>English</strong></p>
 <p align="center">
-  <a href="https://github.com/MianTiaoDW/promi-prompt-butler/releases"><img src="https://img.shields.io/badge/version-1.4.0-0467FB" alt="v1.4.0" /></a>
+  <a href="https://github.com/MianTiaoDW/promi-prompt-butler/releases"><img src="https://img.shields.io/badge/version-1.5.0-0467FB" alt="v1.5.0" /></a>
   <img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-MV3-0467FB" alt="Chrome / Edge MV3" />
   <img src="https://img.shields.io/badge/Windows%20%2F%20macOS-supported-0467FB" alt="Windows / macOS" />
 </p>
@@ -11,7 +11,7 @@
 
 Promi is a Chrome / Edge extension for AI art workflows. It brings prompt organization, AI prompt writing, and image generation into one workspace, with light, dark, and system themes.
 
-The current sharing build is **v1.4.0**. Bring your own model provider and API key. The extension does not include model credits; supported models and image parameters depend on your provider. The interface and detailed user guide are currently in Chinese; this page provides an English introduction and setup instructions.
+The current sharing build is **v1.5.0**. Bring your own model provider and API key. The extension does not include model credits; supported models and image parameters depend on your provider. The interface and detailed user guide are currently in Chinese; this page provides an English introduction and setup instructions.
 
 ## Three workspaces
 
@@ -23,7 +23,7 @@ The current sharing build is **v1.4.0**. Bring your own model provider and API k
 
 ## Features
 
-- **Emphasis (main development build):** select prompt text to apply background or text colors, with 10 reading presets, custom HSV / HEX, background opacity, theme previews, contrast warnings and a readability adjustment. Annotations persist separately; copy and model requests stay plain text. [Details and measurements (Chinese)](docs/PROMPT_EMPHASIS.md). Existing v1.4.0 release packages do not include this feature; build current main to use it.
+- **Emphasis:** select prompt text to apply background or text colors, with 10 reading presets, custom HSV / HEX, background opacity, theme previews, contrast warnings and a readability adjustment. Annotations persist separately; copy and model requests stay plain text. [Details and measurements (Chinese)](docs/PROMPT_EMPHASIS.md). Included in v1.5.0 test packages.
 
 - **Reference images:** add files or drag them into the creation area, up to 8 images in the received order.
 - **Folders:** ten colors, drag sorting, and inline title editing by double-click. Removing a prompt from a folder only removes that association; the prompt remains in All. Deleting a folder keeps its prompts.
@@ -88,7 +88,7 @@ Stack: React 18, TypeScript 5, Vite 5, Tailwind CSS 3, Framer Motion 12, and CRX
 ## Documentation and feedback
 
 - [User guide (Chinese)](docs/使用指南.md).
-- [v1.4.0 notes (Chinese)](docs/RELEASE_v1.4.0.md).
+- [v1.5.0 notes (Chinese)](docs/RELEASE_v1.5.0.md).
 - [Documentation index](docs/README.md), [project structure](docs/PROJECT_STRUCTURE.md), and [development handoff](docs/CODEX_HANDOFF.md) (Chinese).
 - [Report an issue](https://github.com/MianTiaoDW/promi-prompt-butler/issues): include your OS, browser, version, steps, and actual outcome. Hide credentials in screenshots.
 - [Icon attribution and license](docs/ICONSAX_NOTICE.md).

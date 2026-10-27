@@ -3,7 +3,7 @@
 <p align="center">把想法写成提示词，把提示词变成图片，把好用的内容留在自己的库里。</p>
 <p align="center"><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
 <p align="center">
-  <a href="https://github.com/MianTiaoDW/promi-prompt-butler/releases"><img src="https://img.shields.io/badge/version-1.4.0-0467FB" alt="v1.4.0" /></a>
+  <a href="https://github.com/MianTiaoDW/promi-prompt-butler/releases"><img src="https://img.shields.io/badge/version-1.5.0-0467FB" alt="v1.5.0" /></a>
   <img src="https://img.shields.io/badge/Chrome%20%2F%20Edge-MV3-0467FB" alt="Chrome / Edge MV3" />
   <img src="https://img.shields.io/badge/Windows%20%2F%20macOS-supported-0467FB" alt="Windows / macOS" />
 </p>
@@ -11,7 +11,7 @@
 
 Promi 是一个面向有提示词管理收藏需求用户的，兼备AI 绘画创作的 Chrome／Edge 浏览器扩展。它把提示词管理、AI 提示词创作和图片生成放在同一个工作台中，支持日间、夜间和跟随系统主题。
 
-当前分享版本为 **v1.4.0**。请您使用自己的模型服务和 API Key；插件不附带模型额度，实际支持的模型及生图参数取决于服务商。
+当前分享版本为 **v1.5.0**。请您使用自己的模型服务和 API Key；插件不附带模型额度，实际支持的模型及生图参数取决于服务商。
 
 ## 三个工作区
 
@@ -23,7 +23,7 @@ Promi 是一个面向有提示词管理收藏需求用户的，兼备AI 绘画�
 
 ## 主要功能
 
-- **画重点（main 开发版）**：选中文字后，可设置背景高亮或文字颜色。提供 10 组阅读预设和自定义 HSV／HEX 色板，背景可调不透明度，支持明暗预览、对比度提示及一键调整。标记单独保存，复制和发送给模型仍是纯文字。[使用与测量说明](docs/PROMPT_EMPHASIS.md)。已有 v1.4.0 发布包尚未包含此功能，源码构建最新 main 可使用。
+- **画重点**：选中文字后，可设置背景高亮或文字颜色。提供 10 组阅读预设和自定义 HSV／HEX 色板，背景可调不透明度，支持明暗预览、对比度提示及一键调整。标记单独保存，复制和发送给模型仍是纯文字。[使用与测量说明](docs/PROMPT_EMPHASIS.md)。v1.5.0 测试包已包含此功能。
 
 - **参考图**：点击添加或直接拖入，最多 8 张，按传入顺序排列。
 - **收藏夹**：支持十种颜色、拖动排序、双击标题原地改名。移出当前收藏夹只取消关联，提示词仍在“全部”中；删除收藏夹不会删除提示词。
@@ -88,7 +88,7 @@ npm run build
 ## 文档与反馈
 
 - [使用指南](docs/使用指南.md)：按界面介绍日常操作。
-- [版本说明](docs/RELEASE_v1.4.0.md)：本版变化与安装方式。
+- [版本说明](docs/RELEASE_v1.5.0.md)：本版变化与安装方式。
 - [文档导航](docs/README.md)、[项目结构](docs/PROJECT_STRUCTURE.md)、[开发交接](docs/CODEX_HANDOFF.md)。
 - [提交问题](https://github.com/MianTiaoDW/promi-prompt-butler/issues)：请说明系统、浏览器、版本、操作步骤和实际结果，附上隐藏密钥后的截图。
 - [图标来源与许可](docs/ICONSAX_NOTICE.md)。
